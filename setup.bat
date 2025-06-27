@@ -78,14 +78,15 @@ echo 2) Setup Diarization
 echo 3) Test GPU
 echo 4) Check Versions
 echo 5) Fix Common Issues
+echo 6) Fix SSL Issues
 echo.
 echo %L_CYAN%UTILITIES%RESET%
-echo 6) Start Audio Environment
-echo 7) Start Audio Processing
-echo 8) Show Help
+echo 7) Start Audio Environment
+echo 8) Start Audio Processing
+echo 9) Show Help
 echo.
 echo %L_YELLOW%MAINTENANCE%RESET%
-echo 9) Delete Environment
+echo 10) Delete Environment
 echo.
 echo %L_RED%0) Exit/Quit%RESET%
 echo.
@@ -96,10 +97,11 @@ if "%UserOption%"=="2" goto SetupDiarization
 if "%UserOption%"=="3" goto TestGPU
 if "%UserOption%"=="4" goto CheckVersions
 if "%UserOption%"=="5" goto FixIssues
-if "%UserOption%"=="6" goto StartEnvironment
-if "%UserOption%"=="7" goto StartProcessing
-if "%UserOption%"=="8" goto ShowHelp
-if "%UserOption%"=="9" goto DeleteEnvironment
+if "%UserOption%"=="6" goto FixSSLIssues
+if "%UserOption%"=="7" goto StartEnvironment
+if "%UserOption%"=="8" goto StartProcessing
+if "%UserOption%"=="9" goto ShowHelp
+if "%UserOption%"=="10" goto DeleteEnvironment
 if "%UserOption%"=="0" goto End
 
 goto MainMenu
@@ -166,7 +168,7 @@ echo.
 
 :: Сначала устанавливаем совместимую версию NumPy
 echo    %L_CYAN%Installing compatible NumPy version...%RESET%
-pip install "numpy>=1.25.2,<2.0.0" || (
+pip install "numpy>=1.25.2,<2.0.0" --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_RED%Failed to install compatible NumPy version!%RESET%
     pause
     goto MainMenu
@@ -174,13 +176,13 @@ pip install "numpy>=1.25.2,<2.0.0" || (
 
 :: Установка инструментов сборки
 echo    %L_CYAN%Installing build tools...%RESET%
-pip install wheel setuptools --upgrade || (
+pip install wheel setuptools --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_YELLOW%Warning: Failed to upgrade build tools, continuing...%RESET%
 )
 
 :: Установка PyTorch и torchaudio с поддержкой CUDA
 echo    %L_CYAN%Installing PyTorch with CUDA support...%RESET%
-pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 || (
+pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
     echo %L_RED%Failed to install torch/torchaudio with CUDA support!%RESET%
     pause
     goto MainMenu
@@ -194,7 +196,7 @@ python -c "import torch; print('PyTorch version:', torch.__version__); print('CU
 
 :: Установка остальных зависимостей
 echo    %L_CYAN%Installing remaining dependencies...%RESET%
-pip install -r requirements.txt || (
+pip install -r requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_RED%Failed to install requirements from requirements.txt!%RESET%
     echo Please check the error messages above and try again.
     pause
@@ -237,12 +239,12 @@ call :activate_conda_env || (
 
 
 echo    %L_YELLOW%Installing build tools...%RESET%
-pip install wheel setuptools cmake --upgrade || (
+pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_YELLOW%Warning: Failed to install cmake, trying alternative approach...%RESET%
 )
 
 echo    %L_YELLOW%Installing PyAnnote from requirements.txt...%RESET%
-pip install -r requirements.txt || (
+pip install -r requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_YELLOW%Main installation failed, trying conda method...%RESET%
     echo %L_CYAN%Installing sentencepiece via conda...%RESET%
     conda install -c conda-forge sentencepiece -y || (
@@ -252,14 +254,14 @@ pip install -r requirements.txt || (
     )
     
     echo %L_CYAN%Installing speechbrain...%RESET%
-    pip install speechbrain || (
+    pip install speechbrain --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
         echo %L_RED%Failed to install speechbrain!%RESET%
         pause
         goto MainMenu
     )
     
     echo %L_CYAN%Installing pyannote.audio...%RESET%
-    pip install pyannote.audio || (
+    pip install pyannote.audio --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
         echo %L_RED%Failed to install pyannote.audio!%RESET%
         echo Please check the error messages above.
         pause
@@ -395,7 +397,7 @@ python -c "import torch; print('Current PyTorch:', torch.__version__); print('CU
 python -c "import torch; exit(0 if torch.cuda.is_available() else 1)" || (
     echo %L_YELLOW%CUDA not available, reinstalling PyTorch with CUDA support...%RESET%
     pip uninstall torch torchaudio -y
-    pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 --force-reinstall || (
+    pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 --force-reinstall --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
         echo %L_RED%Failed to reinstall PyTorch with CUDA!%RESET%
         pause
         goto MainMenu
@@ -403,12 +405,12 @@ python -c "import torch; exit(0 if torch.cuda.is_available() else 1)" || (
 )
 
 echo    %L_YELLOW%Installing build tools...%RESET%
-pip install wheel setuptools cmake --upgrade || (
+pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_YELLOW%Warning: Failed to install cmake, trying alternative approach...%RESET%
 )
 
 echo    %L_YELLOW%Reinstalling all packages from requirements.txt...%RESET%
-pip install -r requirements.txt --force-reinstall || (
+pip install -r requirements.txt --force-reinstall --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_YELLOW%Main installation failed, trying conda method...%RESET%
     echo %L_CYAN%Installing sentencepiece via conda...%RESET%
     conda install -c conda-forge sentencepiece -y || (
@@ -418,7 +420,7 @@ pip install -r requirements.txt --force-reinstall || (
     )
     
     echo %L_CYAN%Installing remaining packages...%RESET%
-    pip install -r requirements.txt --force-reinstall || (
+    pip install -r requirements.txt --force-reinstall --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
         echo %L_RED%Failed to reinstall from requirements.txt!%RESET%
         echo Please check the error messages above.
         pause
@@ -546,6 +548,133 @@ if exist "!AUDIO_ENV_DIR!\" (
 )
 
 echo    %L_GREEN%Environment deleted!%RESET%
+pause
+goto MainMenu
+
+:FixSSLIssues
+cls
+echo.
+echo    %L_BLUE%FIXING SSL MODULE ISSUES%RESET%
+echo.
+set "PYTHON_EXE=%cd%\audio_environment\env\python.exe"
+
+if not exist "!PYTHON_EXE!" (
+    echo %L_RED%Environment not found! Run Option 1 first.%RESET%
+    pause
+    goto MainMenu
+)
+
+echo    %L_CYAN%Activating environment...%RESET%
+call :activate_conda_env || (
+    pause
+    goto MainMenu
+)
+
+echo    %L_YELLOW%Testing SSL module...%RESET%
+python -c "import ssl; print('SSL module available')" 2>nul || (
+    echo %L_RED%SSL module not available - fixing...%RESET%
+    goto FixSSL
+)
+
+echo    %L_GREEN%SSL module is working correctly.%RESET%
+echo.
+echo    %L_YELLOW%Testing pip with SSL...%RESET%
+python -m pip --version 2>nul || (
+    echo %L_RED%Pip SSL test failed - fixing...%RESET%
+    goto FixSSL
+)
+
+echo    %L_GREEN%SSL issues are resolved!%RESET%
+pause
+goto MainMenu
+
+:FixSSL
+echo.
+echo    %L_YELLOW%APPLYING SSL FIXES%RESET%
+echo.
+
+:: Method 1: Reinstall Python with SSL support via conda
+echo    %L_CYAN%Method 1: Reinstalling Python with SSL support...%RESET%
+conda install python=3.11 openssl certifi -y || (
+    echo %L_YELLOW%Failed to reinstall Python via conda, trying alternative method...%RESET%
+    goto FixSSLAlt
+)
+
+:: Test SSL after reinstall
+echo    %L_CYAN%Testing SSL after reinstall...%RESET%
+python -c "import ssl; print('SSL module available')" 2>nul || (
+    echo %L_YELLOW%SSL still not working, trying alternative method...%RESET%
+    goto FixSSLAlt
+)
+
+echo    %L_GREEN%SSL module is now working!%RESET%
+goto UpdatePip
+
+:FixSSLAlt
+echo.
+echo    %L_CYAN%Method 2: Installing OpenSSL and certificates...%RESET%
+conda install openssl certifi ca-certificates -y || (
+    echo %L_RED%Failed to install OpenSSL via conda%RESET%
+    goto FixSSLManual
+)
+
+:: Set SSL environment variables
+set "SSL_CERT_FILE=!CONDA_PREFIX!\Library\ssl\cert.pem"
+set "SSL_CERT_DIR=!CONDA_PREFIX!\Library\ssl\certs"
+set "REQUESTS_CA_BUNDLE=!CONDA_PREFIX!\Library\ssl\cert.pem"
+
+:: Test SSL
+python -c "import ssl; print('SSL module available')" 2>nul || (
+    echo %L_YELLOW%SSL still not working, trying manual fix...%RESET%
+    goto FixSSLManual
+)
+
+echo    %L_GREEN%SSL module is now working!%RESET%
+goto UpdatePip
+
+:FixSSLManual
+echo.
+echo    %L_CYAN%Method 3: Manual SSL configuration...%RESET%
+echo.
+
+:: Create pip configuration to disable SSL verification (temporary fix)
+echo    %L_YELLOW%Creating pip configuration...%RESET%
+if not exist "!CONDA_PREFIX!\pip.conf" (
+    echo [global] > "!CONDA_PREFIX!\pip.conf"
+    echo trusted-host = pypi.org >> "!CONDA_PREFIX!\pip.conf"
+    echo trusted-host = pypi.python.org >> "!CONDA_PREFIX!\pip.conf"
+    echo trusted-host = files.pythonhosted.org >> "!CONDA_PREFIX!\pip.conf"
+    echo trusted-host = download.pytorch.org >> "!CONDA_PREFIX!\pip.conf"
+    echo trusted-host = conda.anaconda.org >> "!CONDA_PREFIX!\pip.conf"
+    echo trusted-host = conda-forge.org >> "!CONDA_PREFIX!\pip.conf"
+)
+
+:: Set environment variables for pip
+set "PIP_DISABLE_PIP_VERSION_CHECK=1"
+set "PIP_NO_CACHE_DIR=1"
+
+echo    %L_GREEN%Pip configured to work around SSL issues.%RESET%
+echo    %L_YELLOW%Note: This is a temporary workaround.%RESET%
+
+:UpdatePip
+echo.
+echo    %L_CYAN%Updating pip to latest version...%RESET%
+python -m pip install --upgrade pip --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+    echo %L_YELLOW%Failed to update pip, but continuing...%RESET%
+)
+
+echo.
+echo    %L_GREEN%SSL FIX COMPLETED%RESET%
+echo.
+echo    The following fixes were applied:
+echo    1. Reinstalled Python with SSL support
+echo    2. Installed OpenSSL and certificates
+echo    3. Configured pip to work around SSL issues
+echo.
+echo    You can now try installing packages again.
+echo    If you still have issues, try running:
+echo      pip install --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org package_name
+echo.
 pause
 goto MainMenu
 

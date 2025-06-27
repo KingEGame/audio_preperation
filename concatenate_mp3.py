@@ -174,8 +174,8 @@ def concatenate_mp3_files(input_dir, output_file, file_pattern="*.mp3", sort_by_
 
 def main():
     parser = argparse.ArgumentParser(description="Конкатенация MP3 файлов через ffmpeg")
-    parser.add_argument('--input', '-i', required=True, help='Папка с MP3 файлами')
-    parser.add_argument('--output', '-o', required=True, help='Путь к выходному MP3 файлу')
+    parser.add_argument('--input', '-i', help='Папка с MP3 файлами')
+    parser.add_argument('--output', '-o', help='Путь к выходному MP3 файлу')
     parser.add_argument('--pattern', '-p', default='*.mp3', help='Паттерн для поиска файлов (по умолчанию *.mp3)')
     parser.add_argument('--no-sort', action='store_true', help='Не сортировать файлы по имени')
     parser.add_argument('--verbose', '-v', action='store_true', help='Подробное логирование')
@@ -236,6 +236,12 @@ def main():
         if confirm in ['n', 'no', 'нет']:
             print("Конкатенация отменена.")
             return
+    else:
+        # Проверяем обязательные аргументы только в неинтерактивном режиме
+        if not args.input:
+            parser.error("--input/-i is required when not using --interactive")
+        if not args.output:
+            parser.error("--output/-o is required when not using --interactive")
 
     logger.info(f"Входные параметры: {vars(args)}")
 

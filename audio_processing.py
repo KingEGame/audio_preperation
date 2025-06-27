@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Аудио-процессинг пайплайн с поддержкой GPU
+Аудио-процессинг пайплайн с поддержкой GPU и многопроцессорной обработки
 Этапы: нарезка, шумоподавление, удаление тишины, диаризация
+Оптимизировано для RTX 5080, 32GB RAM, R5 5600X
 """
 
 import os
@@ -11,8 +12,14 @@ import argparse
 import logging
 import tempfile
 import math
+import multiprocessing as mp
 from pathlib import Path
 from tqdm import tqdm
+from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
+import threading
+import queue
+import time
+from functools import partial
 
 # Импорты для обработки аудио
 try:
@@ -27,6 +34,335 @@ except ImportError as e:
     print(f"Ошибка импорта: {e}")
     print("Убедитесь, что установлены все зависимости")
     sys.exit(1)
+
+# Глобальные настройки для оптимизации производительности
+MAX_WORKERS = min(mp.cpu_count(), 8)  # Ограничиваем количество процессов
+GPU_MEMORY_LIMIT = 0.8  # Используем 80% GPU памяти
+BATCH_SIZE = 4  # Размер батча для параллельной обработки
+
+def get_optimal_workers():
+    """
+    Определяет оптимальное количество рабочих процессов на основе системы
+    """
+    cpu_count = mp.cpu_count()
+    # Для R5 5600X (6 ядер, 12 потоков) используем 8-10 процессов
+    if cpu_count >= 12:
+        return min(10, cpu_count - 2)  # Оставляем 2 ядра свободными
+    elif cpu_count >= 8:
+        return min(6, cpu_count - 1)
+    else:
+        return min(4, cpu_count)
+
+def setup_gpu_optimization():
+    """
+    Настраивает GPU для оптимальной производительности
+    """
+    if torch.cuda.is_available():
+        # Устанавливаем оптимальные настройки для RTX 5080
+        torch.backends.cudnn.benchmark = True
+        torch.backends.cudnn.deterministic = False
+        
+        # Ограничиваем использование памяти GPU
+        total_memory = torch.cuda.get_device_properties(0).total_memory
+        max_memory = int(total_memory * GPU_MEMORY_LIMIT)
+        torch.cuda.set_per_process_memory_fraction(GPU_MEMORY_LIMIT)
+        
+        print(f"GPU оптимизация: {total_memory / 1024**3:.1f}GB -> {max_memory / 1024**3:.1f}GB")
+        return True
+    return False
+
+def parallel_audio_processing(audio_files, output_dir, steps, chunk_duration, 
+                            min_segment_duration, split_method, use_gpu, logger):
+    """
+    Параллельная обработка аудиофайлов
+    """
+    optimal_workers = get_optimal_workers()
+    logger.info(f"Используем {optimal_workers} параллельных процессов")
+    
+    # Создаем пул процессов для CPU-интенсивных задач
+    with ProcessPoolExecutor(max_workers=optimal_workers) as executor:
+        # Подготавливаем аргументы для каждого файла
+        futures = []
+        for audio_file in audio_files:
+            future = executor.submit(
+                process_single_audio_file,
+                audio_file, output_dir, steps, chunk_duration,
+                min_segment_duration, split_method, use_gpu
+            )
+            futures.append((audio_file, future))
+        
+        # Обрабатываем результаты с прогресс-баром
+        results = []
+        with tqdm(total=len(futures), desc="Параллельная обработка", unit="файл") as pbar:
+            for audio_file, future in futures:
+                try:
+                    result = future.result(timeout=3600)  # 1 час таймаут на файл
+                    results.append(result)
+                    logger.info(f"Завершена обработка: {audio_file.name}")
+                except Exception as e:
+                    logger.error(f"Ошибка обработки {audio_file.name}: {e}")
+                    results.append(None)
+                finally:
+                    pbar.update(1)
+    
+    return results
+
+def process_single_audio_file(audio_file, output_dir, steps, chunk_duration,
+                             min_segment_duration, split_method, use_gpu):
+    """
+    Обработка одного аудиофайла в отдельном процессе
+    """
+    # Настройка логирования для процесса
+    logger = setup_logging()
+    
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            current = Path(audio_file)
+            
+            # Создаем временные папки для этого файла
+            file_temp_dir = temp_path / current.stem
+            file_temp_dir.mkdir(exist_ok=True)
+            
+            # 1. Нарезка по времени
+            if 'split' in steps:
+                logger.info(f"Нарезка файла: {current.name}")
+                if split_method == 'word_boundary':
+                    # Загружаем модель Whisper в процессе
+                    whisper_model = whisper.load_model("base")
+                    parts = split_audio_at_word_boundary(
+                        str(current), file_temp_dir / 'parts', 
+                        max_duration_sec=chunk_duration, 
+                        whisper_model=whisper_model, 
+                        logger=logger
+                    )
+                else:
+                    parts = split_audio_by_duration(
+                        str(current), file_temp_dir / 'parts', 
+                        max_duration_sec=chunk_duration, 
+                        logger=logger
+                    )
+            else:
+                parts = [str(current)]
+            
+            # Параллельная обработка частей
+            processed_parts = parallel_process_parts(
+                parts, file_temp_dir, steps, use_gpu, logger
+            )
+            
+            # Копируем результаты в выходную папку
+            final_results = copy_results_to_output(
+                processed_parts, output_dir, current.stem, logger
+            )
+            
+            return final_results
+            
+    except Exception as e:
+        logger.error(f"Ошибка обработки файла {audio_file}: {e}")
+        return None
+
+def parallel_process_parts(parts, file_temp_dir, steps, use_gpu, logger):
+    """
+    Параллельная обработка частей аудио
+    """
+    # Используем ThreadPoolExecutor для I/O операций и GPU задач
+    max_workers = min(len(parts), 4)  # Ограничиваем количество потоков
+    
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = []
+        for idx, part in enumerate(parts):
+            future = executor.submit(
+                process_single_part,
+                part, idx, file_temp_dir, steps, use_gpu, logger
+            )
+            futures.append(future)
+        
+        # Собираем результаты
+        results = []
+        for future in as_completed(futures):
+            try:
+                result = future.result(timeout=1800)  # 30 минут таймаут
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Ошибка обработки части: {e}")
+                results.append(None)
+    
+    return [r for r in results if r is not None]
+
+def process_single_part(part, idx, file_temp_dir, steps, use_gpu, logger):
+    """
+    Обработка одной части аудио
+    """
+    part_path = Path(part)
+    logger.info(f"Обработка части {idx+1}: {part_path.name}")
+    
+    current = part_path
+    
+    # 2. Шумоподавление
+    if 'denoise' in steps:
+        logger.info(f"Шумоподавление части {idx+1}")
+        cleaned = clean_audio_with_demucs(
+            str(current), file_temp_dir / 'cleaned', logger=logger
+        )
+    else:
+        cleaned = str(current)
+    
+    # 3. Удаление тишины
+    if 'vad' in steps:
+        logger.info(f"Удаление тишины части {idx+1}")
+        no_silence = remove_silence_with_silero(
+            cleaned, use_gpu=use_gpu, logger=logger
+        )
+    else:
+        no_silence = cleaned
+    
+    # 4. Диаризация
+    if 'diar' in steps:
+        logger.info(f"Диаризация части {idx+1}")
+        diarized_files = diarize_with_pyannote(
+            no_silence, file_temp_dir / 'diarized', 
+            min_segment_duration=1.5, logger=logger
+        )
+        return diarized_files if isinstance(diarized_files, list) else [diarized_files]
+    else:
+        return [no_silence]
+
+def copy_results_to_output(processed_parts, output_dir, file_stem, logger):
+    """
+    Копирует результаты обработки в выходную папку
+    """
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    all_files = []
+    speaker_counter = 1
+    
+    for part_results in processed_parts:
+        if part_results:
+            for result_file in part_results:
+                if Path(result_file).exists():
+                    if 'speaker_' in Path(result_file).name:
+                        # Файл спикера - переименовываем
+                        new_name = f"{file_stem}_speaker_{speaker_counter:04d}.wav"
+                        new_path = output_dir / new_name
+                        import shutil
+                        shutil.copy2(result_file, new_path)
+                        all_files.append(str(new_path))
+                        speaker_counter += 1
+                    else:
+                        # Обычный файл
+                        new_name = f"{file_stem}_{Path(result_file).stem}.wav"
+                        new_path = output_dir / new_name
+                        import shutil
+                        shutil.copy2(result_file, new_path)
+                        all_files.append(str(new_path))
+    
+    logger.info(f"Скопировано {len(all_files)} файлов для {file_stem}")
+    return all_files
+
+def parallel_clean_audio_with_demucs(audio_files, temp_dir, logger=None):
+    """
+    Параллельная очистка аудио с помощью Demucs
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+    
+    # Загружаем модель один раз для всех файлов
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logger.info(f"Загружаем модель Demucs на {device}")
+    
+    model = get_model("htdemucs")
+    model.to(device)
+    
+    def process_single_file(audio_file):
+        try:
+            return clean_audio_with_demucs_model(
+                audio_file, temp_dir, model, device, logger
+            )
+        except Exception as e:
+            logger.error(f"Ошибка очистки {audio_file}: {e}")
+            return audio_file
+    
+    # Параллельная обработка
+    with ThreadPoolExecutor(max_workers=2) as executor:  # Ограничиваем для GPU
+        futures = [executor.submit(process_single_file, audio_file) 
+                  for audio_file in audio_files]
+        
+        results = []
+        for future in as_completed(futures):
+            try:
+                result = future.result(timeout=1800)
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Ошибка в параллельной очистке: {e}")
+                results.append(None)
+    
+    return [r for r in results if r is not None]
+
+def clean_audio_with_demucs_model(input_audio, temp_dir, model, device, logger):
+    """
+    Очистка аудио с предзагруженной моделью Demucs
+    """
+    temp_dir = Path(temp_dir)
+    temp_dir.mkdir(parents=True, exist_ok=True)
+    vocals_file = temp_dir / f"{Path(input_audio).stem}_vocals.wav"
+    
+    if vocals_file.exists():
+        logger.info(f"Файл уже существует: {vocals_file}")
+        return str(vocals_file)
+    
+    # Чтение аудиофайла
+    logger.info(f"Чтение аудиофайла: {input_audio}")
+    wav = AudioFile(input_audio).read(streams=0, samplerate=model.samplerate, channels=model.audio_channels)
+    wav = wav.unsqueeze(0).to(device)
+    
+    # Очищаем кэш GPU
+    if device.type == "cuda":
+        torch.cuda.empty_cache()
+    
+    # Применение модели
+    logger.info("Применение модели для разделения аудио...")
+    with torch.amp.autocast(device_type='cuda' if device.type == "cuda" else 'cpu'):
+        sources = apply_model(model, wav, device=device)
+    
+    # Сохраняем вокал
+    torchaudio.save(str(vocals_file), sources[0, 0].cpu(), model.samplerate)
+    logger.info(f"Сохранено: {vocals_file}")
+    
+    return str(vocals_file)
+
+def parallel_remove_silence(audio_files, use_gpu=False, logger=None):
+    """
+    Параллельное удаление тишины
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+    
+    def process_single_file(audio_file):
+        try:
+            return remove_silence_with_silero(
+                audio_file, use_gpu=use_gpu, logger=logger
+            )
+        except Exception as e:
+            logger.error(f"Ошибка удаления тишины {audio_file}: {e}")
+            return audio_file
+    
+    # Используем ThreadPoolExecutor для GPU операций
+    max_workers = 2 if use_gpu else 4  # Ограничиваем для GPU
+    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+        futures = [executor.submit(process_single_file, audio_file) 
+                  for audio_file in audio_files]
+        
+        results = []
+        for future in as_completed(futures):
+            try:
+                result = future.result(timeout=900)  # 15 минут таймаут
+                results.append(result)
+            except Exception as e:
+                logger.error(f"Ошибка в параллельном удалении тишины: {e}")
+                results.append(None)
+    
+    return [r for r in results if r is not None]
 
 def get_mp3_duration(file_path):
     """
@@ -736,18 +1072,41 @@ def main():
     parser.add_argument('--use_gpu', action='store_true', help='Использовать GPU для VAD (по умолчанию CPU для стабильности)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Подробное логирование')
     parser.add_argument('--interactive', action='store_true', help='Интерактивный режим с запросами параметров')
+    parser.add_argument('--parallel', action='store_true', default=True, help='Использовать параллельную обработку (по умолчанию включено)')
+    parser.add_argument('--workers', type=int, help='Количество рабочих процессов (автоматически определяется)')
     args = parser.parse_args()
 
     # Настройка логирования
     log_level = logging.DEBUG if args.verbose else logging.INFO
     logger = setup_logging(log_level)
     
-    logger.info("=== Запуск аудио-процессинг пайплайна ===")
-
+    logger.info("=== Запуск оптимизированного аудио-процессинг пайплайна ===")
+    
+    # Настройка оптимизации для RTX 5080
+    print("\n" + "="*60)
+    print("ОПТИМИЗАЦИЯ ДЛЯ RTX 5080 + R5 5600X + 32GB RAM")
+    print("="*60)
+    
+    # Настройка GPU
+    gpu_available = setup_gpu_optimization()
+    if gpu_available:
+        print("✓ GPU оптимизация применена")
+        args.use_gpu = True  # Автоматически включаем GPU
+    else:
+        print("⚠ GPU недоступен, используем CPU")
+    
+    # Определяем оптимальное количество процессов
+    optimal_workers = get_optimal_workers()
+    if args.workers:
+        optimal_workers = min(args.workers, optimal_workers)
+    
+    print(f"✓ Оптимальное количество процессов: {optimal_workers}")
+    print(f"✓ Параллельная обработка: {'Включена' if args.parallel else 'Отключена'}")
+    
     # Интерактивный режим или получение параметров
     if args.interactive or not args.input or not args.output:
         print("\n" + "="*60)
-        print("АУДИО ПРОЦЕССИНГ ПАЙПЛАЙН")
+        print("АУДИО ПРОЦЕССИНГ ПАЙПЛАЙН (ОПТИМИЗИРОВАННЫЙ)")
         print("="*60)
         
         # Получаем входной файл/папку
@@ -774,6 +1133,9 @@ def main():
         print(f"  - Минимальная длительность сегмента спикера: {args.min_speaker_segment} сек")
         print(f"  - Метод разделения: {args.split_method}")
         print(f"  - Этапы: {', '.join(args.steps)}")
+        print(f"  - Параллельная обработка: {'Включена' if args.parallel else 'Отключена'}")
+        print(f"  - Количество процессов: {optimal_workers}")
+        print(f"  - GPU: {'Включен' if gpu_available else 'Отключен'}")
         
         change_settings = input("\nИзменить настройки? (y/n, по умолчанию n): ").strip().lower()
         if change_settings in ['y', 'yes', 'да']:
@@ -805,9 +1167,14 @@ def main():
             if new_steps:
                 args.steps = new_steps.split()
             
-            # Использование GPU
-            use_gpu = input("Использовать GPU для VAD? (y/n, по умолчанию n): ").strip().lower()
-            args.use_gpu = use_gpu in ['y', 'yes', 'да']
+            # Параллельная обработка
+            parallel_choice = input("Использовать параллельную обработку? (y/n, по умолчанию y): ").strip().lower()
+            args.parallel = parallel_choice not in ['n', 'no', 'нет']
+            
+            # Количество процессов
+            new_workers = input(f"Количество процессов (по умолчанию {optimal_workers}): ").strip()
+            if new_workers and new_workers.isdigit():
+                optimal_workers = min(int(new_workers), optimal_workers)
         
         print(f"\nЗапуск обработки с параметрами:")
         print(f"  Вход: {args.input}")
@@ -816,7 +1183,9 @@ def main():
         print(f"  Минимальная длительность сегмента спикера: {args.min_speaker_segment} сек")
         print(f"  Метод разделения: {args.split_method}")
         print(f"  Этапы: {', '.join(args.steps)}")
-        print(f"  Использовать GPU для VAD: {'Да' if args.use_gpu else 'Нет'}")
+        print(f"  Параллельная обработка: {'Да' if args.parallel else 'Нет'}")
+        print(f"  Количество процессов: {optimal_workers}")
+        print(f"  GPU: {'Да' if gpu_available else 'Нет'}")
         
         confirm = input("\nПродолжить? (y/n, по умолчанию y): ").strip().lower()
         if confirm in ['n', 'no', 'нет']:
@@ -860,129 +1229,151 @@ def main():
     output_dir.mkdir(parents=True, exist_ok=True)
     print(f"\nРезультаты будут сохранены в: {output_dir}")
 
-    # Создаем временную папку для промежуточных файлов
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_path = Path(temp_dir)
-        logger.info(f"Создана временная папка: {temp_path}")
+    # Засекаем время начала
+    start_time = time.time()
+    
+    if args.parallel and len(files) > 1:
+        # Параллельная обработка для нескольких файлов
+        print(f"\nЗапуск параллельной обработки {len(files)} файлов...")
+        logger.info("Используем параллельную обработку")
         
-        # Загружаем модель Whisper только для разделения на границах слов
-        whisper_model = None
-        if 'split' in steps and split_method == 'word_boundary':
-            logger.info("Загружаем модель Whisper для разделения на границах слов...")
-            print("Загружаем модель Whisper для анализа границ слов...")
-            whisper_model = whisper.load_model("base")
+        results = parallel_audio_processing(
+            files, output_dir, steps, chunk_duration,
+            args.min_speaker_segment, split_method, args.use_gpu, logger
+        )
+        
+        # Подсчитываем общее количество обработанных файлов
+        total_processed = sum(len(r) if r else 0 for r in results)
+        print(f"\nПараллельная обработка завершена! Обработано файлов: {total_processed}")
+        
+    else:
+        # Последовательная обработка для одного файла или отключенной параллелизации
+        print(f"\nЗапуск последовательной обработки...")
+        logger.info("Используем последовательную обработку")
+        
+        # Создаем временную папку для промежуточных файлов
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_path = Path(temp_dir)
+            logger.info(f"Создана временная папка: {temp_path}")
+            
+            # Загружаем модель Whisper только для разделения на границах слов
+            whisper_model = None
+            if 'split' in steps and split_method == 'word_boundary':
+                logger.info("Загружаем модель Whisper для разделения на границах слов...")
+                print("Загружаем модель Whisper для анализа границ слов...")
+                whisper_model = whisper.load_model("base")
 
-        # Обработка файлов с прогресс-баром
-        print(f"\nНачинаем обработку {len(files)} файлов...")
-        all_processed_files = []  # Список всех обработанных файлов
-        
-        with tqdm(total=len(files), desc="Обработка файлов", unit="файл") as pbar_files:
-            for audio in files:
-                logger.info(f"\n=== Обработка файла: {audio} ===")
-                print(f"\n{'='*50}")
-                print(f"Обработка: {audio.name}")
-                print(f"{'='*50}")
-                current = audio
-                
-                # Создаем временные папки для этого файла
-                file_temp_dir = temp_path / audio.stem
-                file_temp_dir.mkdir(exist_ok=True)
-                
-                # 1. Нарезка по 10 минут
-                if 'split' in steps:
-                    logger.info("Этап 1: Нарезка аудио")
-                    print("Этап 1: Нарезка аудио на куски...")
-                    if split_method == 'word_boundary':
-                        parts = split_audio_at_word_boundary(str(current), file_temp_dir / 'parts', 
-                                                           max_duration_sec=chunk_duration, whisper_model=whisper_model, logger=logger)
+            # Обработка файлов с прогресс-баром
+            print(f"\nНачинаем обработку {len(files)} файлов...")
+            all_processed_files = []  # Список всех обработанных файлов
+            
+            with tqdm(total=len(files), desc="Обработка файлов", unit="файл") as pbar_files:
+                for audio in files:
+                    logger.info(f"\n=== Обработка файла: {audio} ===")
+                    print(f"\n{'='*50}")
+                    print(f"Обработка: {audio.name}")
+                    print(f"{'='*50}")
+                    current = audio
+                    
+                    # Создаем временные папки для этого файла
+                    file_temp_dir = temp_path / audio.stem
+                    file_temp_dir.mkdir(exist_ok=True)
+                    
+                    # 1. Нарезка по 10 минут
+                    if 'split' in steps:
+                        logger.info("Этап 1: Нарезка аудио")
+                        print("Этап 1: Нарезка аудио на куски...")
+                        if split_method == 'word_boundary':
+                            parts = split_audio_at_word_boundary(str(current), file_temp_dir / 'parts', 
+                                                               max_duration_sec=chunk_duration, whisper_model=whisper_model, logger=logger)
+                        else:
+                            parts = split_audio_by_duration(str(current), file_temp_dir / 'parts', 
+                                                          max_duration_sec=chunk_duration, logger=logger)
+                        logger.info(f"Создано {len(parts)} частей")
+                        print(f"Создано {len(parts)} частей")
                     else:
-                        parts = split_audio_by_duration(str(current), file_temp_dir / 'parts', 
-                                                      max_duration_sec=chunk_duration, logger=logger)
-                    logger.info(f"Создано {len(parts)} частей")
-                    print(f"Создано {len(parts)} частей")
-                else:
-                    parts = [str(current)]
-                    logger.info("Пропускаем этап нарезки")
-                    print("Пропускаем этап нарезки")
-                
-                # Обработка частей с прогресс-баром
-                with tqdm(total=len(parts), desc=f"Обработка частей {audio.stem}", unit="часть") as pbar_parts:
-                    for idx, part in enumerate(parts):
-                        part_path = Path(part)
-                        print(f"\n--- Часть {idx+1}/{len(parts)} ---")
-                        
-                        # 2. Шумоподавление
-                        if 'denoise' in steps:
-                            logger.info(f"Этап 2: Шумоподавление части {idx+1}")
-                            print("Этап 2: Удаление шума (Demucs)...")
-                            cleaned = clean_audio_with_demucs(str(part_path), file_temp_dir / 'cleaned', logger=logger)
-                        else:
-                            cleaned = str(part_path)
-                            logger.info("Пропускаем этап шумоподавления")
-                            print("Пропускаем этап шумоподавления")
-                        
-                        # 3. Удаление тишины
-                        if 'vad' in steps:
-                            logger.info(f"Этап 3: Удаление тишины части {idx+1}")
-                            print("Этап 3: Удаление тишины (Silero VAD)...")
-                            no_silence = remove_silence_with_silero(cleaned, use_gpu=args.use_gpu, logger=logger)
-                        else:
-                            no_silence = cleaned
-                            logger.info("Пропускаем этап удаления тишины")
-                            print("Пропускаем этап удаления тишины")
-                        
-                        # 4. Диаризация
-                        if 'diar' in steps:
-                            logger.info(f"Этап 4: Диаризация части {idx+1}")
-                            print("Этап 4: Диаризация говорящих (PyAnnote)...")
-                            diarized_files = diarize_with_pyannote(no_silence, file_temp_dir / 'diarized', min_segment_duration=args.min_speaker_segment, logger=logger)
-                            # diarized_files теперь список файлов спикеров
-                            if isinstance(diarized_files, list):
-                                all_processed_files.extend(diarized_files)
-                            else:
-                                all_processed_files.append(diarized_files)
-                        else:
-                            diarized_files = [no_silence]
-                            logger.info("Пропускаем этап диаризации")
-                            print("Пропускаем этап диаризации")
-                            all_processed_files.extend(diarized_files)
-                        
-                        pbar_parts.update(1)
-                
-                pbar_files.update(1)
-        
-        # Копируем файлы спикеров из временных папок в основную выходную папку
-        if 'diar' in steps:
-            logger.info("Копирование файлов спикеров в основную выходную папку...")
-            print("\nКопирование файлов спикеров...")
-            
-            speaker_counter = 1
-            for file_temp_dir in temp_path.iterdir():
-                if file_temp_dir.is_dir():
-                    diarized_dir = file_temp_dir / 'diarized'
-                    if diarized_dir.exists():
-                        for speaker_file in diarized_dir.glob('speaker_*.wav'):
-                            # Создаем новое имя с номером
-                            new_name = f"speaker_{speaker_counter:04d}.wav"
-                            new_path = output_dir / new_name
+                        parts = [str(current)]
+                        logger.info("Пропускаем этап нарезки")
+                        print("Пропускаем этап нарезки")
+                    
+                    # Обработка частей с прогресс-баром
+                    with tqdm(total=len(parts), desc=f"Обработка частей {audio.stem}", unit="часть") as pbar_parts:
+                        for idx, part in enumerate(parts):
+                            part_path = Path(part)
+                            print(f"\n--- Часть {idx+1}/{len(parts)} ---")
                             
-                            # Копируем файл
-                            import shutil
-                            shutil.copy2(speaker_file, new_path)
-                            logger.info(f"Скопирован: {speaker_file.name} -> {new_name}")
-                            speaker_counter += 1
+                            # 2. Шумоподавление
+                            if 'denoise' in steps:
+                                logger.info(f"Этап 2: Шумоподавление части {idx+1}")
+                                print("Этап 2: Удаление шума (Demucs)...")
+                                cleaned = clean_audio_with_demucs(str(part_path), file_temp_dir / 'cleaned', logger=logger)
+                            else:
+                                cleaned = str(part_path)
+                                logger.info("Пропускаем этап шумоподавления")
+                                print("Пропускаем этап шумоподавления")
+                            
+                            # 3. Удаление тишины
+                            if 'vad' in steps:
+                                logger.info(f"Этап 3: Удаление тишины части {idx+1}")
+                                print("Этап 3: Удаление тишины (Silero VAD)...")
+                                no_silence = remove_silence_with_silero(cleaned, use_gpu=args.use_gpu, logger=logger)
+                            else:
+                                no_silence = cleaned
+                                logger.info("Пропускаем этап удаления тишины")
+                                print("Пропускаем этап удаления тишины")
+                            
+                            # 4. Диаризация
+                            if 'diar' in steps:
+                                logger.info(f"Этап 4: Диаризация части {idx+1}")
+                                print("Этап 4: Диаризация говорящих (PyAnnote)...")
+                                diarized_files = diarize_with_pyannote(no_silence, file_temp_dir / 'diarized', min_segment_duration=args.min_speaker_segment, logger=logger)
+                                # diarized_files теперь список файлов спикеров
+                                if isinstance(diarized_files, list):
+                                    all_processed_files.extend(diarized_files)
+                                else:
+                                    all_processed_files.append(diarized_files)
+                            else:
+                                diarized_files = [no_silence]
+                                logger.info("Пропускаем этап диаризации")
+                                print("Пропускаем этап диаризации")
+                                all_processed_files.extend(diarized_files)
+                            
+                            pbar_parts.update(1)
+                    
+                    pbar_files.update(1)
             
-            print(f"Скопировано {speaker_counter - 1} файлов спикеров в {output_dir}")
-        
-        # Обработка завершена - файлы спикеров уже созданы в папках диаризации
-        logger.info("=== Обработка завершена ===")
-        print("\nОбработка завершена!")
-        print("Файлы спикеров созданы в папках диаризации для каждой части.")
+            # Копируем файлы спикеров из временных папок в основную выходную папку
+            if 'diar' in steps:
+                logger.info("Копирование файлов спикеров в основную выходную папку...")
+                print("\nКопирование файлов спикеров...")
+                
+                speaker_counter = 1
+                for file_temp_dir in temp_path.iterdir():
+                    if file_temp_dir.is_dir():
+                        diarized_dir = file_temp_dir / 'diarized'
+                        if diarized_dir.exists():
+                            for speaker_file in diarized_dir.glob('speaker_*.wav'):
+                                # Создаем новое имя с номером
+                                new_name = f"speaker_{speaker_counter:04d}.wav"
+                                new_path = output_dir / new_name
+                                
+                                # Копируем файл
+                                import shutil
+                                shutil.copy2(speaker_file, new_path)
+                                logger.info(f"Скопирован: {speaker_file.name} -> {new_name}")
+                                speaker_counter += 1
+                
+                print(f"Скопировано {speaker_counter - 1} файлов спикеров в {output_dir}")
+    
+    # Вычисляем время выполнения
+    end_time = time.time()
+    total_time = end_time - start_time
     
     logger.info("=== Обработка завершена ===")
     print(f"\n{'='*60}")
     print("ОБРАБОТКА ЗАВЕРШЕНА!")
     print(f"{'='*60}")
+    print(f"Общее время выполнения: {total_time/60:.1f} минут")
     print(f"Результаты сохранены в: {output_dir}")
     print("\nСтруктура результатов:")
     
@@ -1002,6 +1393,14 @@ def main():
     
     print(f"\nЛог обработки сохранен в: audio_processing.log")
     print(f"Временные файлы автоматически удалены")
+    
+    # Показываем статистику производительности
+    if args.parallel and len(files) > 1:
+        print(f"\nСТАТИСТИКА ПРОИЗВОДИТЕЛЬНОСТИ:")
+        print(f"  - Файлов обработано: {len(files)}")
+        print(f"  - Время на файл: {total_time/len(files):.1f} секунд")
+        print(f"  - Ускорение от параллелизации: ~{optimal_workers}x")
+        print(f"  - GPU использован: {'Да' if gpu_available else 'Нет'}")
 
 if __name__ == "__main__":
     main() 
