@@ -282,7 +282,7 @@ if "!HF_TOKEN!"=="" (
     pause
     goto MainMenu
 )
-
+huggingface-cli login --token !HF_TOKEN! --add-to-git-credential
 echo    %L_CYAN%Saving token...%RESET%
 echo !HF_TOKEN! > hf_token.txt
 

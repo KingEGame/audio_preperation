@@ -723,88 +723,16 @@ def setup_logging(log_level=logging.INFO):
     )
     return logging.getLogger(__name__)
 
-def create_final_chunks(processed_audio_files, output_dir, chunk_duration=30, logger=None):
-    """
-    Создает финальные чанки из обработанных аудиофайлов и сохраняет их в указанную папку.
-    
-    :param processed_audio_files: Список путей к обработанным аудиофайлам
-    :param output_dir: Папка для сохранения финальных чанков
-    :param chunk_duration: Длительность каждого чанка в секундах
-    :param logger: Логгер для записи сообщений
-    :return: Список путей к созданным чанкам
-    """
-    if logger is None:
-        logger = logging.getLogger(__name__)
-    
-    output_dir = Path(output_dir)
-    output_dir.mkdir(parents=True, exist_ok=True)
-    
-    all_chunks = []
-    chunk_counter = 1
-    
-    logger.info(f"Создание финальных чанков длительностью {chunk_duration} секунд...")
-    
-    for audio_file in processed_audio_files:
-        audio_path = Path(audio_file)
-        if not audio_path.exists():
-            logger.warning(f"Файл не найден: {audio_file}")
-            continue
-            
-        # Получаем длительность файла
-        try:
-            duration_str = get_mp3_duration(str(audio_path))
-            time_parts = duration_str.split(":")
-            hours = int(time_parts[0])
-            minutes = int(time_parts[1])
-            seconds = int(time_parts[2])
-            total_seconds = hours * 3600 + minutes * 60 + seconds
-        except Exception as e:
-            logger.error(f"Не удалось определить длительность файла {audio_file}: {e}")
-            continue
-        
-        # Рассчитываем количество чанков для этого файла
-        num_chunks = max(1, int(total_seconds / chunk_duration))
-        
-        logger.info(f"Файл {audio_path.name}: {total_seconds} сек -> {num_chunks} чанков")
-        
-        for i in range(num_chunks):
-            start_time = i * chunk_duration
-            actual_duration = min(chunk_duration, total_seconds - start_time)
-            
-            # Создаем имя для чанка
-            chunk_name = f"chunk_{chunk_counter:04d}.wav"
-            chunk_path = output_dir / chunk_name
-            
-            # Создаем чанк
-            command = [
-                "ffmpeg", "-i", str(audio_path),
-                "-ss", str(start_time), "-t", str(actual_duration),
-                "-c", "copy", str(chunk_path)
-            ]
-            
-            try:
-                subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, check=True)
-                all_chunks.append(str(chunk_path))
-                chunk_counter += 1
-                logger.debug(f"Создан чанк: {chunk_name}")
-            except subprocess.CalledProcessError as e:
-                logger.error(f"Ошибка при создании чанка {chunk_name}: {e}")
-    
-    logger.info(f"Создано {len(all_chunks)} финальных чанков в {output_dir}")
-    return all_chunks
-
 def main():
-    parser = argparse.ArgumentParser(description="Аудио-процессинг пайплайн: нарезка, шумоподавление, удаление тишины, диаризация.")
+    parser = argparse.ArgumentParser(description="Аудио-процессинг пайплайн: нарезка, шумоподавление, удаление тишины, диаризация с разделением по спикерам.")
     parser.add_argument('--input', '-i', help='Путь к аудиофайлу (mp3/wav) или папке с файлами')
     parser.add_argument('--output', '-o', help='Папка для сохранения результатов')
     parser.add_argument('--chunk_duration', type=int, default=600, help='Максимальная длительность куска (секунд), по умолчанию 600 (10 минут)')
-    parser.add_argument('--final_chunk_duration', type=int, default=30, help='Длительность финальных чанков (секунд), по умолчанию 30')
     parser.add_argument('--min_speaker_segment', type=float, default=1.5, help='Минимальная длительность сегмента спикера (секунд), по умолчанию 1.5')
     parser.add_argument('--steps', nargs='+', default=['split','denoise','vad', 'diar'],
                         help='Этапы обработки: split, denoise, vad, diar')
     parser.add_argument('--split_method', type=str, default='word_boundary', choices=['simple', 'word_boundary'],
                         help='Метод разделения: simple (простое) или word_boundary (на границах слов)')
-    parser.add_argument('--create_final_chunks', action='store_true', help='Создать финальные чанки в выходной папке')
     parser.add_argument('--use_gpu', action='store_true', help='Использовать GPU для VAD (по умолчанию CPU для стабильности)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Подробное логирование')
     parser.add_argument('--interactive', action='store_true', help='Интерактивный режим с запросами параметров')
@@ -843,10 +771,9 @@ def main():
         # Дополнительные настройки
         print(f"\nТекущие настройки:")
         print(f"  - Длительность куска: {args.chunk_duration} сек")
-        print(f"  - Длительность финальных чанков: {args.final_chunk_duration} сек")
+        print(f"  - Минимальная длительность сегмента спикера: {args.min_speaker_segment} сек")
         print(f"  - Метод разделения: {args.split_method}")
         print(f"  - Этапы: {', '.join(args.steps)}")
-        print(f"  - Создать финальные чанки: {'Да' if args.create_final_chunks else 'Нет'}")
         
         change_settings = input("\nИзменить настройки? (y/n, по умолчанию n): ").strip().lower()
         if change_settings in ['y', 'yes', 'да']:
@@ -855,10 +782,10 @@ def main():
             if new_duration and new_duration.isdigit():
                 args.chunk_duration = int(new_duration)
             
-            # Длительность финальных чанков
-            new_final_duration = input(f"Длительность финальных чанков в секундах (по умолчанию {args.final_chunk_duration}): ").strip()
-            if new_final_duration and new_final_duration.isdigit():
-                args.final_chunk_duration = int(new_final_duration)
+            # Минимальная длительность сегмента спикера
+            new_min_segment = input(f"Минимальная длительность сегмента спикера в секундах (по умолчанию {args.min_speaker_segment}): ").strip()
+            if new_min_segment and new_min_segment.replace('.', '').isdigit():
+                args.min_speaker_segment = float(new_min_segment)
             
             # Метод разделения
             print("\nМетод разделения:")
@@ -878,10 +805,6 @@ def main():
             if new_steps:
                 args.steps = new_steps.split()
             
-            # Создание финальных чанков
-            create_chunks = input("Создать финальные чанки? (y/n, по умолчанию n): ").strip().lower()
-            args.create_final_chunks = create_chunks in ['y', 'yes', 'да']
-            
             # Использование GPU
             use_gpu = input("Использовать GPU для VAD? (y/n, по умолчанию n): ").strip().lower()
             args.use_gpu = use_gpu in ['y', 'yes', 'да']
@@ -890,10 +813,9 @@ def main():
         print(f"  Вход: {args.input}")
         print(f"  Выход: {args.output}")
         print(f"  Длительность куска: {args.chunk_duration} сек")
-        print(f"  Длительность финальных чанков: {args.final_chunk_duration} сек")
+        print(f"  Минимальная длительность сегмента спикера: {args.min_speaker_segment} сек")
         print(f"  Метод разделения: {args.split_method}")
         print(f"  Этапы: {', '.join(args.steps)}")
-        print(f"  Создать финальные чанки: {'Да' if args.create_final_chunks else 'Нет'}")
         print(f"  Использовать GPU для VAD: {'Да' if args.use_gpu else 'Нет'}")
         
         confirm = input("\nПродолжить? (y/n, по умолчанию y): ").strip().lower()
@@ -906,7 +828,6 @@ def main():
     input_path = Path(args.input)
     output_dir = Path(args.output)
     chunk_duration = args.chunk_duration
-    final_chunk_duration = args.final_chunk_duration
     steps = args.steps
     split_method = args.split_method
 
@@ -1030,14 +951,33 @@ def main():
                 
                 pbar_files.update(1)
         
-        # 5. Создание финальных чанков (если запрошено)
-        if args.create_final_chunks:
-            logger.info("Этап 5: Создание финальных чанков")
-            print("\nЭтап 5: Создание финальных чанков...")
-            final_chunks = create_final_chunks(all_processed_files, output_dir, final_chunk_duration, logger=logger)
-            print(f"Создано {len(final_chunks)} финальных чанков")
-        else:
-            print("\nПропускаем создание финальных чанков")
+        # Копируем файлы спикеров из временных папок в основную выходную папку
+        if 'diar' in steps:
+            logger.info("Копирование файлов спикеров в основную выходную папку...")
+            print("\nКопирование файлов спикеров...")
+            
+            speaker_counter = 1
+            for file_temp_dir in temp_path.iterdir():
+                if file_temp_dir.is_dir():
+                    diarized_dir = file_temp_dir / 'diarized'
+                    if diarized_dir.exists():
+                        for speaker_file in diarized_dir.glob('speaker_*.wav'):
+                            # Создаем новое имя с номером
+                            new_name = f"speaker_{speaker_counter:04d}.wav"
+                            new_path = output_dir / new_name
+                            
+                            # Копируем файл
+                            import shutil
+                            shutil.copy2(speaker_file, new_path)
+                            logger.info(f"Скопирован: {speaker_file.name} -> {new_name}")
+                            speaker_counter += 1
+            
+            print(f"Скопировано {speaker_counter - 1} файлов спикеров в {output_dir}")
+        
+        # Обработка завершена - файлы спикеров уже созданы в папках диаризации
+        logger.info("=== Обработка завершена ===")
+        print("\nОбработка завершена!")
+        print("Файлы спикеров созданы в папках диаризации для каждой части.")
     
     logger.info("=== Обработка завершена ===")
     print(f"\n{'='*60}")
@@ -1048,11 +988,6 @@ def main():
     
     # Показываем что создалось
     if output_dir.exists():
-        if args.create_final_chunks:
-            chunk_files = list(output_dir.glob('chunk_*.wav'))
-            if chunk_files:
-                print(f"  chunk_*.wav ({len(chunk_files)} файлов)")
-        
         # Показываем файлы спикеров если была диаризация
         if 'diar' in steps:
             speaker_files = list(output_dir.glob('speaker_*.wav'))
