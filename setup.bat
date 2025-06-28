@@ -192,7 +192,7 @@ echo    %L_RED%WARNING: This will delete the entire environment and all installe
 echo    %L_YELLOW%This includes: Python environment, FFmpeg, and all dependencies%RESET%
 echo.
 set /p ConfirmDelete="    Are you sure? Type 'YES' to confirm: "
-if /i not "!ConfirmDelete!"=="YES" (
+if /i not "%ConfirmDelete%"=="YES" (
     echo    %L_GREEN%Deletion cancelled.%RESET%
     pause
     goto MainMenu
@@ -203,7 +203,9 @@ echo.
 call system\instructions\delete_environment.bat
 echo.
 echo    %L_GREEN%✅ Environment deleted successfully!%RESET%
-pause
+echo.
+echo    %L_CYAN%Press any key to return to main menu...%RESET%
+pause >nul
 goto MainMenu
 
 :End

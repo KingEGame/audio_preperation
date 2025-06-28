@@ -86,27 +86,21 @@ echo    %L_YELLOW%Installing all dependencies. This step can take a long time%RE
 echo    %L_YELLOW%depending on your internet connection and hard drive speed. Please be patient.%RESET%
 echo.
 
-:: Install compatible NumPy version first
-echo    %L_CYAN%Installing compatible NumPy version...%RESET%
-pip install "numpy>=1.25.2,<2.0.0" --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-    echo %L_RED%Failed to install compatible NumPy version!%RESET%
-    pause
-    exit /b 1
-)
-
-:: Install build tools
+:: Install build tools first
 echo    %L_CYAN%Installing build tools...%RESET%
 pip install wheel setuptools --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_YELLOW%Warning: Failed to upgrade build tools, continuing...%RESET%
 )
 
-:: Install PyTorch with CUDA support using separate module
-echo    %L_CYAN%Installing PyTorch with CUDA support...%RESET%
+:: Install PyTorch with CUDA support FIRST (before other dependencies)
+echo    %L_CYAN%Installing PyTorch with CUDA support (FIRST)...%RESET%
+echo    %L_YELLOW%This ensures PyTorch is installed before other packages to avoid conflicts.%RESET%
 call system\instructions\install_pytorch.bat
 
-:: Install remaining dependencies from main requirements file
+
+:: Install remaining dependencies from main requirements file (excluding PyTorch packages)
 echo    %L_CYAN%Installing remaining dependencies...%RESET%
-echo    %L_YELLOW%Note: PyTorch was already installed, installing other dependencies...%RESET%
+echo    %L_YELLOW%Note: PyTorch was installed first, now installing other dependencies...%RESET%
 
 pip install -r system\requirements\requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_RED%Failed to install remaining dependencies!%RESET%

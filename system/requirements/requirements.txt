@@ -1,6 +1,14 @@
 # Audio Processing Pipeline Requirements
 # Main dependencies (without PyTorch)
-# PyTorch should be installed separately using specific CUDA version files
+# PyTorch is installed FIRST using specific CUDA version files:
+# - system/requirements/requirements_cu118.txt (CUDA 11.8)
+# - system/requirements/requirements_cu121.txt (CUDA 12.1)
+# - system/requirements/requirements_cpu.txt (CPU only)
+# 
+# Installation order:
+# 1. PyTorch (from CUDA-specific file)
+# 2. NumPy (compatible version)
+# 3. Other dependencies (this file)
 
 # Core scientific computing - using NumPy 1.x for compatibility
 numpy>=1.25.2,<2.0.0

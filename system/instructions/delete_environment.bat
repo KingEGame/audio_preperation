@@ -146,4 +146,5 @@ echo.
 echo    %L_YELLOW%Note: If you installed FFmpeg globally, check your system PATH%RESET%
 echo    %L_YELLOW%and remove FFmpeg entries manually if needed.%RESET%
 echo.
-pause 
+echo    %L_CYAN%Press any key to continue...%RESET%
+pause >nul 

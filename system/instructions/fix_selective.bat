@@ -31,12 +31,13 @@ echo    9) Fix GPU/CUDA support (advanced GPU fix)
 echo    10) Fix Diarization access (advanced diarization fix)
 echo    11) Install optimized dependencies (performance fix)
 echo    12) Install without diarization (minimal setup)
+echo    13) Force Install Requirements (force reinstall main requirements)
 echo.
 echo    %L_CYAN%DIAGNOSTICS%RESET%
-echo    13) Check what's broken (diagnose issues)
-echo    14) Test everything (full system test)
-echo    15) Diagnose FFmpeg issues (FFmpeg error 4294967268)
-echo    16) Clean up temporary folders (free disk space)
+echo    14) Check what's broken (diagnose issues)
+echo    15) Test everything (full system test)
+echo    16) Diagnose FFmpeg issues (FFmpeg error 4294967268)
+echo    17) Clean up temporary folders (free disk space)
 echo.
 echo    %L_RED%0) Back to main menu%RESET%
 echo.
@@ -54,10 +55,11 @@ if "%UserChoice%"=="9" goto FixGPUAdvanced
 if "%UserChoice%"=="10" goto FixDiarizationAdvanced
 if "%UserChoice%"=="11" goto InstallOptimized
 if "%UserChoice%"=="12" goto InstallWithoutDiarization
-if "%UserChoice%"=="13" goto DiagnoseIssues
-if "%UserChoice%"=="14" goto TestEverything
-if "%UserChoice%"=="15" goto DiagnoseFFmpeg
-if "%UserChoice%"=="16" goto CleanupTempFolders
+if "%UserChoice%"=="13" goto ForceInstallRequirements
+if "%UserChoice%"=="14" goto DiagnoseIssues
+if "%UserChoice%"=="15" goto TestEverything
+if "%UserChoice%"=="16" goto DiagnoseFFmpeg
+if "%UserChoice%"=="17" goto CleanupTempFolders
 if "%UserChoice%"=="0" goto End
 
 echo    %L_RED%Invalid choice!%RESET%
@@ -372,6 +374,17 @@ if /i "!CONFIRM_CLEANUP!"=="Y" (
 ) else (
     echo    %L_YELLOW%Cleanup cancelled.%RESET%
 )
+pause
+goto End
+
+:ForceInstallRequirements
+echo.
+echo    %L_CYAN%Force installing main requirements...%RESET%
+echo    %L_YELLOW%This will reinstall main requirements%RESET%
+echo.
+call system\fixes\force_install_requirements.bat
+echo.
+echo    %L_GREEN%✅ Main requirements installed!%RESET%
 pause
 goto End
 
