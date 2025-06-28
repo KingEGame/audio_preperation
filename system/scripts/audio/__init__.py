@@ -6,7 +6,6 @@ Audio Processing Package
 from .managers import GPUMemoryManager, ModelManager
 from .processors import (
     process_audio_file_optimized,
-    parallel_audio_processing_optimized,
     process_multiple_files_parallel_optimized,
     process_file_multithreaded_optimized
 )
@@ -24,13 +23,14 @@ from .utils import (
     get_mp3_duration,
     setup_logging,
     copy_results_to_output_optimized,
-    get_optimal_workers,
-    setup_gpu_optimization
+    parallel_audio_processing_optimized
 )
 from .config import (
     MAX_WORKERS,
     GPU_MEMORY_LIMIT,
-    BATCH_SIZE
+    BATCH_SIZE,
+    get_optimal_workers,
+    setup_gpu_optimization
 )
 
 __all__ = [

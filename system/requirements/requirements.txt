@@ -1,0 +1,44 @@
+# Audio Processing Pipeline Requirements
+# Core dependencies with specific versions for better debugging
+
+# PyTorch with CUDA support (must be installed first)
+--extra-index-url https://download.pytorch.org/whl/cu121
+torch>=2.0.0
+torchaudio>=2.0.0
+
+# Core scientific computing - using NumPy 1.x for compatibility
+numpy>=1.25.2,<2.0.0
+scipy>=1.11.4
+
+# HuggingFace ecosystem
+huggingface_hub[cli]>=0.19.0
+transformers>=4.30.0
+
+# Audio processing libraries
+openai-whisper>=20231117
+demucs>=4.0.1
+librosa>=0.10.1
+soundfile>=0.12.1
+ffmpeg-python>=0.2.0
+
+# Voice activity detection
+silero-vad>=5.1.2
+
+# Speaker diarization (optional) - using older stable versions
+pyannote.audio>=3.0.0,<4.0.0
+sentencepiece>=0.1.97,<0.2.0
+speechbrain>=1.0.0,<2.0.0
+
+# Utilities and system monitoring
+tqdm>=4.66.1
+psutil>=5.9.0
+requests>=2.31.0
+urllib3>=1.26.0
+
+# Audio format support
+pydub>=0.25.1
+audioread>=3.0.0
+
+# Development and debugging (optional)
+# pytest>=7.4.0
+# ipython>=8.0.0 

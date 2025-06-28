@@ -146,8 +146,14 @@ echo setlocal enabledelayedexpansion >> start_processing.bat
 echo. >> start_processing.bat
 echo echo. >> start_processing.bat
 echo echo ======================================== >> start_processing.bat
-echo echo 🎵 Audio Processing Pipeline >> start_processing.bat
+echo echo 🎵 Audio Processing Pipeline v2.0 >> start_processing.bat
 echo echo ======================================== >> start_processing.bat
+echo echo. >> start_processing.bat
+echo echo 🆕 New features: >> start_processing.bat
+echo echo    - Modular architecture with /audio package >> start_processing.bat
+echo echo    - Speaker organization in folders >> start_processing.bat
+echo echo    - Enhanced GPU memory management >> start_processing.bat
+echo echo    - No duration limit option >> start_processing.bat
 echo echo. >> start_processing.bat
 echo. >> start_processing.bat
 echo :: Check if environment exists >> start_processing.bat
@@ -171,7 +177,13 @@ echo     echo. >> start_processing.bat
 echo     echo 📝 Examples: >> start_processing.bat
 echo     echo start_processing.bat --input "lecture.mp3" --output "lecture_results" >> start_processing.bat
 echo     echo start_processing.bat --input "meeting.mp3" --output "results" --steps split denoise vad diar >> start_processing.bat
-echo     echo start_processing.bat --input "audio.mp3" --output "results" --create_final_chunks --final_chunk_duration 30 >> start_processing.bat
+echo     echo start_processing.bat --input "audio.mp3" --output "results" --no_duration_limit >> start_processing.bat
+echo     echo start_processing.bat --input "audio.mp3" --output "results" --min_speaker_segment 0.1 >> start_processing.bat
+echo     echo. >> start_processing.bat
+echo     echo 🆕 New options: >> start_processing.bat
+echo     echo    --no_duration_limit - Process all segments without duration limit >> start_processing.bat
+echo     echo    --min_speaker_segment 0.1 - Set minimum segment duration >> start_processing.bat
+echo     echo    --parallel - Enable parallel processing >> start_processing.bat
 echo     echo. >> start_processing.bat
 echo     echo 💡 For detailed help: start_processing.bat --help >> start_processing.bat
 echo     echo. >> start_processing.bat
@@ -180,14 +192,14 @@ echo     exit /b 0 >> start_processing.bat
 echo ^) >> start_processing.bat
 echo. >> start_processing.bat
 echo :: Start processing >> start_processing.bat
-echo echo 🚀 Starting audio processing... >> start_processing.bat
+echo echo 🚀 Starting audio processing with new architecture... >> start_processing.bat
 echo echo. >> start_processing.bat
 echo. >> start_processing.bat
 echo python system\scripts\audio_processing.py %%* >> start_processing.bat
 echo. >> start_processing.bat
 echo echo. >> start_processing.bat
 echo echo ✅ Processing completed! >> start_processing.bat
-echo echo 📁 Results saved in the specified folder >> start_processing.bat
+echo echo 📁 Results organized by speakers in the specified folder >> start_processing.bat
 echo echo. >> start_processing.bat
 echo pause >> start_processing.bat
 
@@ -198,11 +210,15 @@ echo setlocal enabledelayedexpansion >> start_safe_processing.bat
 echo. >> start_safe_processing.bat
 echo echo. >> start_safe_processing.bat
 echo echo ======================================== >> start_safe_processing.bat
-echo echo 🛡️ Safe Audio Processing Pipeline >> start_safe_processing.bat
+echo echo 🛡️ Safe Audio Processing Pipeline v2.0 >> start_safe_processing.bat
 echo echo ======================================== >> start_safe_processing.bat
 echo echo. >> start_safe_processing.bat
-echo echo This version includes enhanced error handling to prevent >> start_safe_processing.bat
-echo echo FFmpeg errors like 4294967268. >> start_safe_processing.bat
+echo echo This version includes enhanced error handling and memory management. >> start_safe_processing.bat
+echo echo 🆕 New features: >> start_safe_processing.bat
+echo echo    - Advanced GPU memory management >> start_safe_processing.bat
+echo echo    - Model caching and reuse >> start_safe_processing.bat
+echo echo    - Better error recovery >> start_safe_processing.bat
+echo echo    - Speaker organization in folders >> start_safe_processing.bat
 echo echo. >> start_safe_processing.bat
 echo. >> start_safe_processing.bat
 echo :: Check if environment exists >> start_safe_processing.bat
@@ -229,6 +245,8 @@ echo     echo    - Enhanced file validation >> start_safe_processing.bat
 echo     echo    - Better error handling >> start_safe_processing.bat
 echo     echo    - Reduced memory usage >> start_safe_processing.bat
 echo     echo    - Timeout protection >> start_safe_processing.bat
+echo     echo    - GPU memory monitoring >> start_safe_processing.bat
+echo     echo    - Model caching system >> start_safe_processing.bat
 echo     echo. >> start_safe_processing.bat
 echo     pause >> start_safe_processing.bat
 echo     exit /b 0 >> start_safe_processing.bat
@@ -242,7 +260,7 @@ echo call system\fixes\run_safe_processing.bat "%%~1" "%%~2" >> start_safe_proce
 echo. >> start_safe_processing.bat
 echo echo. >> start_safe_processing.bat
 echo echo ✅ Safe processing completed! >> start_safe_processing.bat
-echo echo 📁 Results saved in the specified folder >> start_safe_processing.bat
+echo echo 📁 Results organized by speakers in the specified folder >> start_safe_processing.bat
 echo echo. >> start_safe_processing.bat
 echo pause >> start_safe_processing.bat
 
@@ -253,10 +271,11 @@ echo setlocal enabledelayedexpansion >> diagnose_ffmpeg.bat
 echo. >> diagnose_ffmpeg.bat
 echo echo. >> diagnose_ffmpeg.bat
 echo echo ======================================== >> diagnose_ffmpeg.bat
-echo echo 🔍 FFmpeg Diagnostics - Audio Processing Pipeline >> diagnose_ffmpeg.bat
+echo echo 🔍 FFmpeg Diagnostics - Audio Processing Pipeline v2.0 >> diagnose_ffmpeg.bat
 echo echo ======================================== >> diagnose_ffmpeg.bat
 echo echo. >> diagnose_ffmpeg.bat
 echo echo This will diagnose FFmpeg issues and suggest fixes. >> diagnose_ffmpeg.bat
+echo echo 🆕 Now includes GPU memory diagnostics. >> diagnose_ffmpeg.bat
 echo echo. >> diagnose_ffmpeg.bat
 echo. >> diagnose_ffmpeg.bat
 echo :: Check if environment exists >> diagnose_ffmpeg.bat
@@ -271,7 +290,7 @@ echo ^) >> diagnose_ffmpeg.bat
 echo. >> diagnose_ffmpeg.bat
 echo :: Check if audio file is provided >> diagnose_ffmpeg.bat
 echo if "%%~1"=="" ^( >> diagnose_ffmpeg.bat
-echo     echo 📋 Running general FFmpeg diagnostics... >> diagnose_ffmpeg.bat
+echo     echo 📋 Running general FFmpeg and GPU diagnostics... >> diagnose_ffmpeg.bat
 echo     echo. >> diagnose_ffmpeg.bat
 echo     call system\fixes\fix_ffmpeg_issues.bat >> diagnose_ffmpeg.bat
 echo ^) else ^( >> diagnose_ffmpeg.bat
@@ -293,10 +312,11 @@ echo setlocal enabledelayedexpansion >> cleanup_temp.bat
 echo. >> cleanup_temp.bat
 echo echo. >> cleanup_temp.bat
 echo echo ======================================== >> cleanup_temp.bat
-echo echo 🧹 Temporary Folder Cleanup - Audio Processing Pipeline >> cleanup_temp.bat
+echo echo 🧹 Temporary Folder Cleanup - Audio Processing Pipeline v2.0 >> cleanup_temp.bat
 echo echo ======================================== >> cleanup_temp.bat
 echo echo. >> cleanup_temp.bat
 echo echo This will remove old temporary processing folders. >> cleanup_temp.bat
+echo echo 🆕 Now includes GPU memory cleanup. >> cleanup_temp.bat
 echo echo. >> cleanup_temp.bat
 echo. >> cleanup_temp.bat
 echo :: Check if environment exists >> cleanup_temp.bat
@@ -356,8 +376,10 @@ echo setlocal enabledelayedexpansion >> activate_environment.bat
 echo. >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo echo ======================================== >> activate_environment.bat
-echo echo 🐍 Activate Environment - Audio Processing Pipeline >> activate_environment.bat
+echo echo 🐍 Activate Environment - Audio Processing Pipeline v2.0 >> activate_environment.bat
 echo echo ======================================== >> activate_environment.bat
+echo echo. >> activate_environment.bat
+echo echo 🆕 New modular architecture with /audio package >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo. >> activate_environment.bat
 echo :: Check if environment exists >> activate_environment.bat
@@ -380,6 +402,7 @@ echo echo. >> activate_environment.bat
 echo echo 💡 Example commands: >> activate_environment.bat
 echo echo   python system\scripts\audio_processing.py --help >> activate_environment.bat
 echo echo   python system\scripts\test_gpu.py >> activate_environment.bat
+echo echo   python system\scripts\test_new_architecture.py >> activate_environment.bat
 echo echo   python -c "import torch; print(torch.__version__)" >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo echo 🔄 To deactivate, enter: conda deactivate >> activate_environment.bat
@@ -392,8 +415,10 @@ echo setlocal enabledelayedexpansion >> audio_concat.bat
 echo. >> audio_concat.bat
 echo echo. >> audio_concat.bat
 echo echo ======================================== >> audio_concat.bat
-echo echo 🔗 Audio Concatenation - Audio Processing Pipeline >> audio_concat.bat
+echo echo 🔗 Audio Concatenation - Audio Processing Pipeline v2.0 >> audio_concat.bat
 echo echo ======================================== >> audio_concat.bat
+echo echo. >> audio_concat.bat
+echo echo 🆕 Now supports speaker-organized folders >> audio_concat.bat
 echo echo. >> audio_concat.bat
 echo. >> audio_concat.bat
 echo :: Check if environment exists >> audio_concat.bat
@@ -417,8 +442,10 @@ echo     echo. >> audio_concat.bat
 echo     echo 📝 Examples: >> audio_concat.bat
 echo     echo audio_concat.bat "chunks" "combined_audio.mp3" >> audio_concat.bat
 echo     echo audio_concat.bat "results" "final_audio.mp3" >> audio_concat.bat
+echo     echo audio_concat.bat "speaker_0001" "speaker1_combined.mp3" >> audio_concat.bat
 echo     echo. >> audio_concat.bat
 echo     echo 💡 Combines all MP3 files from the folder into one file >> audio_concat.bat
+echo     echo 🆕 Now works with speaker-organized folders >> audio_concat.bat
 echo     echo. >> audio_concat.bat
 echo     pause >> audio_concat.bat
 echo     exit /b 0 >> audio_concat.bat
@@ -443,11 +470,18 @@ echo setlocal enabledelayedexpansion >> start_ultra_optimized_processing.bat
 echo. >> start_ultra_optimized_processing.bat
 echo echo. >> start_ultra_optimized_processing.bat
 echo echo ======================================== >> start_ultra_optimized_processing.bat
-echo echo 🚀 Ultra-Optimized Audio Processing Pipeline >> start_ultra_optimized_processing.bat
+echo echo 🚀 Ultra-Optimized Audio Processing Pipeline v2.0 >> start_ultra_optimized_processing.bat
 echo echo ======================================== >> start_ultra_optimized_processing.bat
 echo echo. >> start_ultra_optimized_processing.bat
 echo echo This version is specifically optimized for parallel diarization performance. >> start_ultra_optimized_processing.bat
-echo echo Key improvements: shared models, optimized chunks, better GPU usage. >> start_ultra_optimized_processing.bat
+echo echo 🆕 New features: >> start_ultra_optimized_processing.bat
+echo echo    - Shared model instances across processes >> start_ultra_optimized_processing.bat
+echo echo    - Optimized chunk sizes for diarization >> start_ultra_optimized_processing.bat
+echo echo    - Better GPU memory management >> start_ultra_optimized_processing.bat
+echo echo    - Faster model loading >> start_ultra_optimized_processing.bat
+echo echo    - Improved parallel performance >> start_ultra_optimized_processing.bat
+echo echo    - Speaker organization in folders >> start_ultra_optimized_processing.bat
+echo echo    - No duration limit option >> start_ultra_optimized_processing.bat
 echo echo. >> start_ultra_optimized_processing.bat
 echo. >> start_ultra_optimized_processing.bat
 echo :: Check if environment exists >> start_ultra_optimized_processing.bat
@@ -475,6 +509,8 @@ echo     echo    - Optimized chunk sizes for diarization >> start_ultra_optimize
 echo     echo    - Better GPU memory management >> start_ultra_optimized_processing.bat
 echo     echo    - Faster model loading >> start_ultra_optimized_processing.bat
 echo     echo    - Improved parallel performance >> start_ultra_optimized_processing.bat
+echo     echo    - Speaker organization in folders >> start_ultra_optimized_processing.bat
+echo     echo    - No duration limit option >> start_ultra_optimized_processing.bat
 echo     echo. >> start_ultra_optimized_processing.bat
 echo     pause >> start_ultra_optimized_processing.bat
 echo     exit /b 0 >> start_ultra_optimized_processing.bat
@@ -488,20 +524,104 @@ echo call system\fixes\run_ultra_optimized_processing.bat "%%~1" "%%~2" >> start
 echo. >> start_ultra_optimized_processing.bat
 echo echo. >> start_ultra_optimized_processing.bat
 echo echo ✅ Ultra-optimized processing completed! >> start_ultra_optimized_processing.bat
-echo echo 📁 Results saved in the specified folder >> start_ultra_optimized_processing.bat
+echo echo 📁 Results organized by speakers in the specified folder >> start_ultra_optimized_processing.bat
 echo echo. >> start_ultra_optimized_processing.bat
 echo pause >> start_ultra_optimized_processing.bat
+
+:: Create test_new_architecture.bat
+echo @echo off > test_new_architecture.bat
+echo chcp 65001 ^>nul >> test_new_architecture.bat
+echo setlocal enabledelayedexpansion >> test_new_architecture.bat
+echo. >> test_new_architecture.bat
+echo echo. >> test_new_architecture.bat
+echo echo ======================================== >> test_new_architecture.bat
+echo echo 🧪 Test New Architecture - Audio Processing Pipeline v2.0 >> test_new_architecture.bat
+echo echo ======================================== >> test_new_architecture.bat
+echo echo. >> test_new_architecture.bat
+echo echo This will test the new modular architecture and features. >> test_new_architecture.bat
+echo echo. >> test_new_architecture.bat
+echo. >> test_new_architecture.bat
+echo :: Check if environment exists >> test_new_architecture.bat
+echo if not exist "audio_environment" ^( >> test_new_architecture.bat
+echo     echo ❌ Environment not found! >> test_new_architecture.bat
+echo     echo. >> test_new_architecture.bat
+echo     echo Run setup.bat and select option 1 to install the environment. >> test_new_architecture.bat
+echo     echo. >> test_new_architecture.bat
+echo     pause >> test_new_architecture.bat
+echo     exit /b 1 >> test_new_architecture.bat
+echo ^) >> test_new_architecture.bat
+echo. >> test_new_architecture.bat
+echo :: Activate environment >> test_new_architecture.bat
+echo call system\instructions\activate_environment.bat >> test_new_architecture.bat
+echo. >> test_new_architecture.bat
+echo :: Start testing >> test_new_architecture.bat
+echo echo 🧪 Testing new architecture... >> test_new_architecture.bat
+echo echo. >> test_new_architecture.bat
+echo. >> test_new_architecture.bat
+echo python system\scripts\test_new_architecture.py >> test_new_architecture.bat
+echo. >> test_new_architecture.bat
+echo echo. >> test_new_architecture.bat
+echo echo ✅ Architecture test completed! >> test_new_architecture.bat
+echo echo. >> test_new_architecture.bat
+echo pause >> test_new_architecture.bat
+
+:: Create test_no_duration_limit.bat
+echo @echo off > test_no_duration_limit.bat
+echo chcp 65001 ^>nul >> test_no_duration_limit.bat
+echo setlocal enabledelayedexpansion >> test_no_duration_limit.bat
+echo. >> test_no_duration_limit.bat
+echo echo. >> test_no_duration_limit.bat
+echo echo ======================================== >> test_no_duration_limit.bat
+echo echo ⏱️ Test No Duration Limit - Audio Processing Pipeline v2.0 >> test_no_duration_limit.bat
+echo echo ======================================== >> test_no_duration_limit.bat
+echo echo. >> test_no_duration_limit.bat
+echo echo This will test the new no duration limit feature. >> test_no_duration_limit.bat
+echo echo. >> test_no_duration_limit.bat
+echo. >> test_no_duration_limit.bat
+echo :: Check if environment exists >> test_no_duration_limit.bat
+echo if not exist "audio_environment" ^( >> test_no_duration_limit.bat
+echo     echo ❌ Environment not found! >> test_no_duration_limit.bat
+echo     echo. >> test_no_duration_limit.bat
+echo     echo Run setup.bat and select option 1 to install the environment. >> test_no_duration_limit.bat
+echo     echo. >> test_no_duration_limit.bat
+echo     pause >> test_no_duration_limit.bat
+echo     exit /b 1 >> test_no_duration_limit.bat
+echo ^) >> test_no_duration_limit.bat
+echo. >> test_no_duration_limit.bat
+echo :: Activate environment >> test_no_duration_limit.bat
+echo call system\instructions\activate_environment.bat >> test_no_duration_limit.bat
+echo. >> test_no_duration_limit.bat
+echo :: Start testing >> test_no_duration_limit.bat
+echo echo ⏱️ Testing no duration limit feature... >> test_no_duration_limit.bat
+echo echo. >> test_no_duration_limit.bat
+echo. >> test_no_duration_limit.bat
+echo python system\scripts\test_no_duration_limit.py >> test_no_duration_limit.bat
+echo. >> test_no_duration_limit.bat
+echo echo. >> test_no_duration_limit.bat
+echo echo ✅ No duration limit test completed! >> test_no_duration_limit.bat
+echo echo. >> test_no_duration_limit.bat
+echo pause >> test_no_duration_limit.bat
 
 echo    %L_GREEN%✅ Convenient bat files created in root directory!%RESET%
 echo.
 echo    %L_CYAN%Available commands:%RESET%
-echo    - start_processing.bat - Start audio processing
+echo    - start_processing.bat - Start audio processing (new architecture)
 echo    - start_safe_processing.bat - Start safe processing (with error handling)
 echo    - start_ultra_optimized_processing.bat - Start ultra-optimized processing (best for parallel diarization)
 echo    - diagnose_ffmpeg.bat - Diagnose FFmpeg issues
 echo    - cleanup_temp.bat - Clean up temporary folders
 echo    - activate_environment.bat - Activate environment
 echo    - audio_concat.bat - Concatenate audio files
+echo    - test_new_architecture.bat - Test new modular architecture
+echo    - test_no_duration_limit.bat - Test no duration limit feature
+echo.
+echo    %L_CYAN%🆕 New features in v2.0:%RESET%
+echo    - Modular architecture with /audio package
+echo    - Speaker organization in folders
+echo    - Enhanced GPU memory management
+echo    - No duration limit option
+echo    - Model caching and reuse
+echo    - Better error handling and recovery
 echo.
 
 echo    %L_GREEN%Installation completed!%RESET%
