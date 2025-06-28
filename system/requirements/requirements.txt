@@ -1,10 +1,6 @@
 # Audio Processing Pipeline Requirements
-# Core dependencies with specific versions for better debugging
-
-# PyTorch with CUDA support (must be installed first)
---extra-index-url https://download.pytorch.org/whl/cu121
-torch>=2.0.0
-torchaudio>=2.0.0
+# Main dependencies (without PyTorch)
+# PyTorch should be installed separately using specific CUDA version files
 
 # Core scientific computing - using NumPy 1.x for compatibility
 numpy>=1.25.2,<2.0.0

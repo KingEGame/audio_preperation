@@ -39,9 +39,9 @@ python -c "import torch; print('Current PyTorch:', torch.__version__); print('CU
 
 echo.
 echo    %L_GREEN%Select CUDA version for PyTorch installation:%RESET%
-echo    1) CUDA 11.8 (PyTorch 2.2.2+cu118)
-echo    2) CUDA 12.1 (PyTorch 2.2.2+cu121) - %L_YELLOW%Recommended%RESET%
-echo    3) CUDA 12.8 (PyTorch 2.2.2+cu128)
+echo    1) CUDA 11.8 (PyTorch 2.1.2+cu118)
+echo    2) CUDA 12.1 (PyTorch 2.1.2+cu121) - %L_YELLOW%Recommended%RESET%
+echo    3) CUDA 12.8 (PyTorch 2.1.2+cu128) - %L_YELLOW%Latest%RESET%
 echo    4) CPU only (no CUDA)
 echo.
 set /p CUDA_CHOICE="    Enter your choice (1-4, default: 2): "
@@ -50,12 +50,12 @@ if "!CUDA_CHOICE!"=="" set "CUDA_CHOICE=2"
 
 :: Uninstall existing PyTorch
 echo    %L_CYAN%Removing existing PyTorch installation...%RESET%
-pip uninstall torch torchaudio -y >nul 2>&1
+pip uninstall torch torchaudio torchvision -y >nul 2>&1
 
-:: Install PyTorch based on choice
+:: Install PyTorch based on choice using our specific PyTorch files
 if "!CUDA_CHOICE!"=="1" (
     echo    %L_CYAN%Installing PyTorch with CUDA 11.8 support...%RESET%
-    pip install torch==2.2.2+cu118 torchaudio==2.2.2+cu118 --extra-index-url https://download.pytorch.org/whl/cu118 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
+    pip install -r system\requirements\requirements_cu118.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
         echo %L_RED%Failed to install PyTorch with CUDA 11.8!%RESET%
         pause
         exit /b 1
@@ -63,7 +63,7 @@ if "!CUDA_CHOICE!"=="1" (
     set "CUDA_VERSION=11.8"
 ) else if "!CUDA_CHOICE!"=="2" (
     echo    %L_CYAN%Installing PyTorch with CUDA 12.1 support...%RESET%
-    pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
+    pip install -r system\requirements\requirements_cu121.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
         echo %L_RED%Failed to install PyTorch with CUDA 12.1!%RESET%
         pause
         exit /b 1
@@ -71,7 +71,7 @@ if "!CUDA_CHOICE!"=="1" (
     set "CUDA_VERSION=12.1"
 ) else if "!CUDA_CHOICE!"=="3" (
     echo    %L_CYAN%Installing PyTorch with CUDA 12.8 support...%RESET%
-    pip install torch==2.2.2+cu128 torchaudio==2.2.2+cu128 --extra-index-url https://download.pytorch.org/whl/cu128 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
+    pip install -r system\requirements\requirements_cu128.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
         echo %L_RED%Failed to install PyTorch with CUDA 12.8!%RESET%
         pause
         exit /b 1
@@ -79,7 +79,7 @@ if "!CUDA_CHOICE!"=="1" (
     set "CUDA_VERSION=12.8"
 ) else if "!CUDA_CHOICE!"=="4" (
     echo    %L_CYAN%Installing PyTorch CPU-only version...%RESET%
-    pip install torch==2.2.2+cpu torchaudio==2.2.2+cpu --extra-index-url https://download.pytorch.org/whl/cpu --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
+    pip install -r system\requirements\requirements_cpu.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org || (
         echo %L_RED%Failed to install PyTorch CPU version!%RESET%
         pause
         exit /b 1

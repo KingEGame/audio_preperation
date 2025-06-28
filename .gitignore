@@ -77,7 +77,7 @@ audio_environment/
 *.log
 !system/requirements/
 !system/instructions/
-
+!system/requirements/*.txt
 # Security - конфигурационные файлы с токенами
 hf_token.txt
 Access.txt
