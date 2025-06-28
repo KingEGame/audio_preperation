@@ -183,13 +183,171 @@ echo :: Start processing >> start_processing.bat
 echo echo 🚀 Starting audio processing... >> start_processing.bat
 echo echo. >> start_processing.bat
 echo. >> start_processing.bat
-echo python scripts\audio_processing.py %%* >> start_processing.bat
+echo python system\scripts\audio_processing.py %%* >> start_processing.bat
 echo. >> start_processing.bat
 echo echo. >> start_processing.bat
 echo echo ✅ Processing completed! >> start_processing.bat
 echo echo 📁 Results saved in the specified folder >> start_processing.bat
 echo echo. >> start_processing.bat
 echo pause >> start_processing.bat
+
+:: Create start_safe_processing.bat
+echo @echo off > start_safe_processing.bat
+echo chcp 65001 ^>nul >> start_safe_processing.bat
+echo setlocal enabledelayedexpansion >> start_safe_processing.bat
+echo. >> start_safe_processing.bat
+echo echo. >> start_safe_processing.bat
+echo echo ======================================== >> start_safe_processing.bat
+echo echo 🛡️ Safe Audio Processing Pipeline >> start_safe_processing.bat
+echo echo ======================================== >> start_safe_processing.bat
+echo echo. >> start_safe_processing.bat
+echo echo This version includes enhanced error handling to prevent >> start_safe_processing.bat
+echo echo FFmpeg errors like 4294967268. >> start_safe_processing.bat
+echo echo. >> start_safe_processing.bat
+echo. >> start_safe_processing.bat
+echo :: Check if environment exists >> start_safe_processing.bat
+echo if not exist "audio_environment" ^( >> start_safe_processing.bat
+echo     echo ❌ Environment not found! >> start_safe_processing.bat
+echo     echo. >> start_safe_processing.bat
+echo     echo Run setup.bat and select option 1 to install the environment. >> start_safe_processing.bat
+echo     echo. >> start_safe_processing.bat
+echo     pause >> start_safe_processing.bat
+echo     exit /b 1 >> start_safe_processing.bat
+echo ^) >> start_safe_processing.bat
+echo. >> start_safe_processing.bat
+echo :: Check if parameters are passed >> start_safe_processing.bat
+echo if "%%~1"=="" ^( >> start_safe_processing.bat
+echo     echo 📋 Usage: >> start_safe_processing.bat
+echo     echo start_safe_processing.bat "input_file.mp3" "output_folder" >> start_safe_processing.bat
+echo     echo. >> start_safe_processing.bat
+echo     echo 📝 Examples: >> start_safe_processing.bat
+echo     echo start_safe_processing.bat "lecture.mp3" "lecture_results" >> start_safe_processing.bat
+echo     echo start_safe_processing.bat "audio_folder" "results" >> start_safe_processing.bat
+echo     echo. >> start_safe_processing.bat
+echo     echo 💡 This version includes: >> start_safe_processing.bat
+echo     echo    - Enhanced file validation >> start_safe_processing.bat
+echo     echo    - Better error handling >> start_safe_processing.bat
+echo     echo    - Reduced memory usage >> start_safe_processing.bat
+echo     echo    - Timeout protection >> start_safe_processing.bat
+echo     echo. >> start_safe_processing.bat
+echo     pause >> start_safe_processing.bat
+echo     exit /b 0 >> start_safe_processing.bat
+echo ^) >> start_safe_processing.bat
+echo. >> start_safe_processing.bat
+echo :: Start safe processing >> start_safe_processing.bat
+echo echo 🚀 Starting safe audio processing... >> start_safe_processing.bat
+echo echo. >> start_safe_processing.bat
+echo. >> start_safe_processing.bat
+echo call system\fixes\run_safe_processing.bat "%%~1" "%%~2" >> start_safe_processing.bat
+echo. >> start_safe_processing.bat
+echo echo. >> start_safe_processing.bat
+echo echo ✅ Safe processing completed! >> start_safe_processing.bat
+echo echo 📁 Results saved in the specified folder >> start_safe_processing.bat
+echo echo. >> start_safe_processing.bat
+echo pause >> start_safe_processing.bat
+
+:: Create diagnose_ffmpeg.bat
+echo @echo off > diagnose_ffmpeg.bat
+echo chcp 65001 ^>nul >> diagnose_ffmpeg.bat
+echo setlocal enabledelayedexpansion >> diagnose_ffmpeg.bat
+echo. >> diagnose_ffmpeg.bat
+echo echo. >> diagnose_ffmpeg.bat
+echo echo ======================================== >> diagnose_ffmpeg.bat
+echo echo 🔍 FFmpeg Diagnostics - Audio Processing Pipeline >> diagnose_ffmpeg.bat
+echo echo ======================================== >> diagnose_ffmpeg.bat
+echo echo. >> diagnose_ffmpeg.bat
+echo echo This will diagnose FFmpeg issues and suggest fixes. >> diagnose_ffmpeg.bat
+echo echo. >> diagnose_ffmpeg.bat
+echo. >> diagnose_ffmpeg.bat
+echo :: Check if environment exists >> diagnose_ffmpeg.bat
+echo if not exist "audio_environment" ^( >> diagnose_ffmpeg.bat
+echo     echo ❌ Environment not found! >> diagnose_ffmpeg.bat
+echo     echo. >> diagnose_ffmpeg.bat
+echo     echo Run setup.bat and select option 1 to install the environment. >> diagnose_ffmpeg.bat
+echo     echo. >> diagnose_ffmpeg.bat
+echo     pause >> diagnose_ffmpeg.bat
+echo     exit /b 1 >> diagnose_ffmpeg.bat
+echo ^) >> diagnose_ffmpeg.bat
+echo. >> diagnose_ffmpeg.bat
+echo :: Check if audio file is provided >> diagnose_ffmpeg.bat
+echo if "%%~1"=="" ^( >> diagnose_ffmpeg.bat
+echo     echo 📋 Running general FFmpeg diagnostics... >> diagnose_ffmpeg.bat
+echo     echo. >> diagnose_ffmpeg.bat
+echo     call system\fixes\fix_ffmpeg_issues.bat >> diagnose_ffmpeg.bat
+echo ^) else ^( >> diagnose_ffmpeg.bat
+echo     echo 📋 Testing specific audio file: %%1 >> diagnose_ffmpeg.bat
+echo     echo. >> diagnose_ffmpeg.bat
+echo     call system\fixes\fix_ffmpeg_issues.bat "%%~1" >> diagnose_ffmpeg.bat
+echo ^) >> diagnose_ffmpeg.bat
+echo. >> diagnose_ffmpeg.bat
+echo echo. >> diagnose_ffmpeg.bat
+echo echo ✅ Diagnostics completed! >> diagnose_ffmpeg.bat
+echo echo 📋 Check the output above for issues and solutions. >> diagnose_ffmpeg.bat
+echo echo. >> diagnose_ffmpeg.bat
+echo pause >> diagnose_ffmpeg.bat
+
+:: Create cleanup_temp.bat
+echo @echo off > cleanup_temp.bat
+echo chcp 65001 ^>nul >> cleanup_temp.bat
+echo setlocal enabledelayedexpansion >> cleanup_temp.bat
+echo. >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo echo ======================================== >> cleanup_temp.bat
+echo echo 🧹 Temporary Folder Cleanup - Audio Processing Pipeline >> cleanup_temp.bat
+echo echo ======================================== >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo echo This will remove old temporary processing folders. >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo. >> cleanup_temp.bat
+echo :: Check if environment exists >> cleanup_temp.bat
+echo if not exist "audio_environment" ^( >> cleanup_temp.bat
+echo     echo ❌ Environment not found! >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     echo Run setup.bat and select option 1 to install the environment. >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     pause >> cleanup_temp.bat
+echo     exit /b 1 >> cleanup_temp.bat
+echo ^) >> cleanup_temp.bat
+echo. >> cleanup_temp.bat
+echo :: Check if dry run is requested >> cleanup_temp.bat
+echo if "%%~1"=="--dry-run" ^( >> cleanup_temp.bat
+echo     echo 📋 Running in DRY RUN mode - no files will be deleted >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     call system\fixes\cleanup_temp_folders.bat --dry-run >> cleanup_temp.bat
+echo ^) else if "%%~1"=="--help" ^( >> cleanup_temp.bat
+echo     echo 📋 Usage options: >> cleanup_temp.bat
+echo     echo   cleanup_temp.bat          - Clean up old folders (24h+) >> cleanup_temp.bat
+echo     echo   cleanup_temp.bat --dry-run - Show what would be deleted >> cleanup_temp.bat
+echo     echo   cleanup_temp.bat --help    - Show this help >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     echo 📝 Examples: >> cleanup_temp.bat
+echo     echo   cleanup_temp.bat >> cleanup_temp.bat
+echo     echo   cleanup_temp.bat --dry-run >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     pause >> cleanup_temp.bat
+echo     exit /b 0 >> cleanup_temp.bat
+echo ^) else ^( >> cleanup_temp.bat
+echo     echo 📋 This will delete temporary folders older than 24 hours. >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     set /p CONFIRM="Continue with cleanup? (y/n): " >> cleanup_temp.bat
+echo     if /i not "!CONFIRM!"=="y" ^( >> cleanup_temp.bat
+echo         echo Cleanup cancelled. >> cleanup_temp.bat
+echo         echo. >> cleanup_temp.bat
+echo         echo To see what would be deleted without actually deleting: >> cleanup_temp.bat
+echo         echo   cleanup_temp.bat --dry-run >> cleanup_temp.bat
+echo         pause >> cleanup_temp.bat
+echo         exit /b 0 >> cleanup_temp.bat
+echo     ^) >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     echo Starting cleanup... >> cleanup_temp.bat
+echo     echo. >> cleanup_temp.bat
+echo     call system\fixes\cleanup_temp_folders.bat >> cleanup_temp.bat
+echo ^) >> cleanup_temp.bat
+echo. >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo echo ✅ Cleanup completed! >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo pause >> cleanup_temp.bat
 
 :: Create activate_environment.bat
 echo @echo off > activate_environment.bat
@@ -220,8 +378,8 @@ echo echo ✅ Environment activated! >> activate_environment.bat
 echo echo 🐍 Now you can use Python commands >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo echo 💡 Example commands: >> activate_environment.bat
-echo echo   python scripts\audio_processing.py --help >> activate_environment.bat
-echo echo   python scripts\test_gpu.py >> activate_environment.bat
+echo echo   python system\scripts\audio_processing.py --help >> activate_environment.bat
+echo echo   python system\scripts\test_gpu.py >> activate_environment.bat
 echo echo   python -c "import torch; print(torch.__version__)" >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo echo 🔄 To deactivate, enter: conda deactivate >> activate_environment.bat
@@ -270,7 +428,7 @@ echo :: Start concatenation >> audio_concat.bat
 echo echo 🚀 Starting audio concatenation... >> audio_concat.bat
 echo echo. >> audio_concat.bat
 echo. >> audio_concat.bat
-echo python scripts\concatenate_mp3.py "%%~1" "%%~2" >> audio_concat.bat
+echo python system\scripts\concatenate_mp3.py "%%~1" "%%~2" >> audio_concat.bat
 echo. >> audio_concat.bat
 echo echo. >> audio_concat.bat
 echo echo ✅ Concatenation completed! >> audio_concat.bat
@@ -278,10 +436,70 @@ echo echo 📁 Result saved in: %%2 >> audio_concat.bat
 echo echo. >> audio_concat.bat
 echo pause >> audio_concat.bat
 
+:: Create start_ultra_optimized_processing.bat
+echo @echo off > start_ultra_optimized_processing.bat
+echo chcp 65001 ^>nul >> start_ultra_optimized_processing.bat
+echo setlocal enabledelayedexpansion >> start_ultra_optimized_processing.bat
+echo. >> start_ultra_optimized_processing.bat
+echo echo. >> start_ultra_optimized_processing.bat
+echo echo ======================================== >> start_ultra_optimized_processing.bat
+echo echo 🚀 Ultra-Optimized Audio Processing Pipeline >> start_ultra_optimized_processing.bat
+echo echo ======================================== >> start_ultra_optimized_processing.bat
+echo echo. >> start_ultra_optimized_processing.bat
+echo echo This version is specifically optimized for parallel diarization performance. >> start_ultra_optimized_processing.bat
+echo echo Key improvements: shared models, optimized chunks, better GPU usage. >> start_ultra_optimized_processing.bat
+echo echo. >> start_ultra_optimized_processing.bat
+echo. >> start_ultra_optimized_processing.bat
+echo :: Check if environment exists >> start_ultra_optimized_processing.bat
+echo if not exist "audio_environment" ^( >> start_ultra_optimized_processing.bat
+echo     echo ❌ Environment not found! >> start_ultra_optimized_processing.bat
+echo     echo. >> start_ultra_optimized_processing.bat
+echo     echo Run setup.bat and select option 1 to install the environment. >> start_ultra_optimized_processing.bat
+echo     echo. >> start_ultra_optimized_processing.bat
+echo     pause >> start_ultra_optimized_processing.bat
+echo     exit /b 1 >> start_ultra_optimized_processing.bat
+echo ^) >> start_ultra_optimized_processing.bat
+echo. >> start_ultra_optimized_processing.bat
+echo :: Check if parameters are passed >> start_ultra_optimized_processing.bat
+echo if "%%~1"=="" ^( >> start_ultra_optimized_processing.bat
+echo     echo 📋 Usage: >> start_ultra_optimized_processing.bat
+echo     echo start_ultra_optimized_processing.bat "input_file.mp3" "output_folder" >> start_ultra_optimized_processing.bat
+echo     echo. >> start_ultra_optimized_processing.bat
+echo     echo 📝 Examples: >> start_ultra_optimized_processing.bat
+echo     echo start_ultra_optimized_processing.bat "lecture.mp3" "lecture_results" >> start_ultra_optimized_processing.bat
+echo     echo start_ultra_optimized_processing.bat "audio_folder" "results" >> start_ultra_optimized_processing.bat
+echo     echo. >> start_ultra_optimized_processing.bat
+echo     echo 💡 This version includes: >> start_ultra_optimized_processing.bat
+echo     echo    - Shared model instances across processes >> start_ultra_optimized_processing.bat
+echo     echo    - Optimized chunk sizes for diarization >> start_ultra_optimized_processing.bat
+echo     echo    - Better GPU memory management >> start_ultra_optimized_processing.bat
+echo     echo    - Faster model loading >> start_ultra_optimized_processing.bat
+echo     echo    - Improved parallel performance >> start_ultra_optimized_processing.bat
+echo     echo. >> start_ultra_optimized_processing.bat
+echo     pause >> start_ultra_optimized_processing.bat
+echo     exit /b 0 >> start_ultra_optimized_processing.bat
+echo ^) >> start_ultra_optimized_processing.bat
+echo. >> start_ultra_optimized_processing.bat
+echo :: Start ultra-optimized processing >> start_ultra_optimized_processing.bat
+echo echo 🚀 Starting ultra-optimized audio processing... >> start_ultra_optimized_processing.bat
+echo echo. >> start_ultra_optimized_processing.bat
+echo. >> start_ultra_optimized_processing.bat
+echo call system\fixes\run_ultra_optimized_processing.bat "%%~1" "%%~2" >> start_ultra_optimized_processing.bat
+echo. >> start_ultra_optimized_processing.bat
+echo echo. >> start_ultra_optimized_processing.bat
+echo echo ✅ Ultra-optimized processing completed! >> start_ultra_optimized_processing.bat
+echo echo 📁 Results saved in the specified folder >> start_ultra_optimized_processing.bat
+echo echo. >> start_ultra_optimized_processing.bat
+echo pause >> start_ultra_optimized_processing.bat
+
 echo    %L_GREEN%✅ Convenient bat files created in root directory!%RESET%
 echo.
 echo    %L_CYAN%Available commands:%RESET%
 echo    - start_processing.bat - Start audio processing
+echo    - start_safe_processing.bat - Start safe processing (with error handling)
+echo    - start_ultra_optimized_processing.bat - Start ultra-optimized processing (best for parallel diarization)
+echo    - diagnose_ffmpeg.bat - Diagnose FFmpeg issues
+echo    - cleanup_temp.bat - Clean up temporary folders
 echo    - activate_environment.bat - Activate environment
 echo    - audio_concat.bat - Concatenate audio files
 echo.

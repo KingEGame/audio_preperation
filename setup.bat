@@ -132,6 +132,18 @@ echo.
 echo    %L_YELLOW%start_processing.bat%RESET% - Start audio processing
 echo    Usage: start_processing.bat --input "audio.mp3" --output "results"
 echo.
+echo    %L_YELLOW%start_safe_processing.bat%RESET% - Start safe processing (with error handling)
+echo    Usage: start_safe_processing.bat "audio.mp3" "results"
+echo.
+echo    %L_YELLOW%start_ultra_optimized_processing.bat%RESET% - Start ultra-optimized processing (best for parallel diarization)
+echo    Usage: start_ultra_optimized_processing.bat "audio.mp3" "results"
+echo.
+echo    %L_YELLOW%diagnose_ffmpeg.bat%RESET% - Diagnose FFmpeg issues
+echo    Usage: diagnose_ffmpeg.bat [audio_file]
+echo.
+echo    %L_YELLOW%cleanup_temp.bat%RESET% - Clean up temporary folders
+echo    Usage: cleanup_temp.bat [--dry-run] [--help]
+echo.
 echo    %L_YELLOW%activate_environment.bat%RESET% - Activate environment
 echo    Usage: activate_environment.bat
 echo.
@@ -141,6 +153,10 @@ echo.
 echo    %L_GREEN%Examples:%RESET%
 echo    start_processing.bat --input lecture.mp3 --output results
 echo    start_processing.bat --input meeting.mp3 --output results --steps split denoise vad diar
+echo    start_safe_processing.bat "audio.mp3" "results"
+echo    start_ultra_optimized_processing.bat "audio_folder" "results"
+echo    diagnose_ffmpeg.bat "problematic_audio.mp3"
+echo    cleanup_temp.bat --dry-run
 echo    audio_concat.bat "chunks" "combined_audio.mp3"
 echo.
 echo    %L_GREEN%Main Options:%RESET%
@@ -152,9 +168,17 @@ echo    --steps STEP1 STEP2  Steps: split, denoise, vad, diar
 echo    --create_final_chunks  Create final chunks
 echo    --verbose            Verbose logging
 echo.
+echo    %L_YELLOW%Performance Optimization:%RESET%
+echo    - Use start_ultra_optimized_processing.bat for best parallel diarization performance
+echo    - For RTX 5080: use 4 workers, 300s chunks
+echo    - For RTX 4070: use 3 workers, 240s chunks
+echo    - For GTX 1660: use 2 workers, 180s chunks
+echo.
 echo    %L_YELLOW%Troubleshooting:%RESET%
 echo    - Use option 4 to fix common issues
 echo    - Use option 2 to test everything
+echo    - Use diagnose_ffmpeg.bat for FFmpeg error 4294967268
+echo    - Use cleanup_temp.bat to free disk space
 echo    - Check GPU drivers for performance issues
 echo    - Ensure internet connection for model downloads
 echo.

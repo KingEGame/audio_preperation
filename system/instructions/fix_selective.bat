@@ -35,6 +35,8 @@ echo.
 echo    %L_CYAN%DIAGNOSTICS%RESET%
 echo    13) Check what's broken (diagnose issues)
 echo    14) Test everything (full system test)
+echo    15) Diagnose FFmpeg issues (FFmpeg error 4294967268)
+echo    16) Clean up temporary folders (free disk space)
 echo.
 echo    %L_RED%0) Back to main menu%RESET%
 echo.
@@ -54,6 +56,8 @@ if "%UserChoice%"=="11" goto InstallOptimized
 if "%UserChoice%"=="12" goto InstallWithoutDiarization
 if "%UserChoice%"=="13" goto DiagnoseIssues
 if "%UserChoice%"=="14" goto TestEverything
+if "%UserChoice%"=="15" goto DiagnoseFFmpeg
+if "%UserChoice%"=="16" goto CleanupTempFolders
 if "%UserChoice%"=="0" goto End
 
 echo    %L_RED%Invalid choice!%RESET%
@@ -323,6 +327,51 @@ if "%ERRORLEVEL%" EQU "0" (
 )
 echo.
 echo    %L_GREEN%✅ All tests completed!%RESET%
+pause
+goto End
+
+:DiagnoseFFmpeg
+echo.
+echo    %L_CYAN%Diagnosing FFmpeg issues...%RESET%
+echo    %L_YELLOW%This will check for FFmpeg error 4294967268 and other issues%RESET%
+echo.
+if not exist "audio_environment" (
+    echo    %L_RED%❌ Environment not found!%RESET%
+    echo    Please run setup.bat and choose option 1 to install environment first.
+    pause
+    goto End
+)
+echo    %L_CYAN%Running FFmpeg diagnostics...%RESET%
+call system\fixes\fix_ffmpeg_issues.bat
+echo.
+echo    %L_GREEN%✅ FFmpeg diagnostics completed!%RESET%
+echo    %L_YELLOW%Check the output above for issues and solutions.%RESET%
+pause
+goto End
+
+:CleanupTempFolders
+echo.
+echo    %L_CYAN%Cleaning up temporary folders...%RESET%
+echo    %L_YELLOW%This will free up disk space by removing old temporary folders%RESET%
+echo.
+if not exist "audio_environment" (
+    echo    %L_RED%❌ Environment not found!%RESET%
+    echo    Please run setup.bat and choose option 1 to install environment first.
+    pause
+    goto End
+)
+echo    %L_CYAN%First, let's see what would be deleted...%RESET%
+call system\fixes\cleanup_temp_folders.bat --dry-run
+echo.
+echo    %L_YELLOW%Do you want to proceed with cleanup?%RESET%
+set /p CONFIRM_CLEANUP="    Enter Y/N (default: N): "
+if /i "!CONFIRM_CLEANUP!"=="Y" (
+    echo    %L_CYAN%Proceeding with cleanup...%RESET%
+    call system\fixes\cleanup_temp_folders.bat
+    echo    %L_GREEN%✅ Temporary folders cleaned up!%RESET%
+) else (
+    echo    %L_YELLOW%Cleanup cancelled.%RESET%
+)
 pause
 goto End
 
