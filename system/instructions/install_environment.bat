@@ -217,12 +217,14 @@ echo echo 🐍 Now you can use Python commands >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo echo 💡 Example commands: >> activate_environment.bat
 echo echo   python system\scripts\audio_processing.py --help >> activate_environment.bat
-echo echo   python system\scripts\test_gpu.py >> activate_environment.bat
-echo echo   python system\scripts\test_new_architecture.py >> activate_environment.bat
+echo echo   python system\tests\test_gpu.py >> activate_environment.bat
+echo echo   python system\tests\test_new_architecture.py >> activate_environment.bat
 echo echo   python -c "import torch; print(torch.__version__)" >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo echo 🔄 To deactivate, enter: conda deactivate >> activate_environment.bat
 echo echo. >> activate_environment.bat
+echo echo Среда активирована. Можно работать!
+echo cmd /K
 
 :: Create cleanup_temp.bat
 echo @echo off > cleanup_temp.bat

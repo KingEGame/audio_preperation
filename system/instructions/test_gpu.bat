@@ -30,8 +30,8 @@ call system\instructions\activate_environment.bat || (
 )
 
 echo    %L_YELLOW%Running GPU test...%RESET%
-if exist "scripts\test_gpu.py" (
-    python scripts\test_gpu.py
+if exist "system\tests\test_gpu.py" (
+    python system\tests\test_gpu.py
 ) else (
     echo %L_CYAN%PyTorch Information:%RESET%
     python -c "import torch; print('PyTorch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda if torch.cuda.is_available() else 'N/A'); print('GPU device:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'None'); print('GPU count:', torch.cuda.device_count() if torch.cuda.is_available() else 0)"

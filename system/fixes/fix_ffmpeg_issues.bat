@@ -42,10 +42,10 @@ echo.
 :: Check if audio file is provided
 if "%~1"=="" (
     echo Running general FFmpeg diagnostics...
-    python "!CONDA_PREFIX!\Scripts\fix_ffmpeg_issues.py"
+    python "%~dp0..\tests\fix_ffmpeg_issues.py"
 ) else (
     echo Testing specific audio file: %~1
-    python "!CONDA_PREFIX!\Scripts\fix_ffmpeg_issues.py" "%~1"
+    python "%~dp0..\tests\fix_ffmpeg_issues.py" "%~1"
 )
 
 echo.

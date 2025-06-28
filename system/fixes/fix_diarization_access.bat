@@ -19,7 +19,7 @@ echo.
 
 REM Запускаем скрипт исправления
 echo Запуск скрипта исправления диаризации...
-python fix_diarization_access.py
+python "%~dp0..\tests\fix_diarization_access.py"
 
 if errorlevel 1 (
     echo.

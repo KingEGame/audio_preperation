@@ -46,7 +46,7 @@ echo.
 if "%~1"=="--dry-run" (
     echo Running in DRY RUN mode - no files will be deleted
     echo.
-    python "!CONDA_PREFIX!\Scripts\cleanup_temp_folders.py" --dry-run
+    python "%~dp0..\scripts\cleanup_temp_folders.py" --dry-run
 ) else if "%~1"=="--help" (
     echo Usage options:
     echo   cleanup_temp_folders.bat          - Clean up old folders (24h+)
@@ -76,7 +76,7 @@ if "%~1"=="--dry-run" (
     echo Starting cleanup...
     echo.
     
-    python "!CONDA_PREFIX!\Scripts\cleanup_temp_folders.py"
+    python "%~dp0..\scripts\cleanup_temp_folders.py"
 )
 
 if %ERRORLEVEL% EQU 0 (
