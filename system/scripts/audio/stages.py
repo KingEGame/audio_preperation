@@ -189,6 +189,22 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
         logger.info(f"Audio tensor device: {wav.device}")
         logger.info(f"Model device: {next(model.parameters()).device}")
         
+        # Дополнительная проверка устройства модели
+        try:
+            # Проверяем все параметры модели
+            for name, param in model.named_parameters():
+                if param.device != device:
+                    logger.warning(f"Parameter {name} on wrong device: {param.device}, moving to {device}")
+                    param.data = param.data.to(device)
+            
+            # Проверяем буферы модели
+            for name, buffer in model.named_buffers():
+                if buffer.device != device:
+                    logger.warning(f"Buffer {name} on wrong device: {buffer.device}, moving to {device}")
+                    buffer.data = buffer.data.to(device)
+        except Exception as e:
+            logger.warning(f"Error checking model device consistency: {e}")
+        
         # Анализ речи
         speech_timestamps = silero_vad.get_speech_timestamps(
             wav[0],
@@ -238,6 +254,22 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
                 # Загружаем модель на CPU
                 model = silero_vad.load_silero_vad()
                 model = model.to(device)
+                
+                # Дополнительная проверка устройства модели для CPU
+                try:
+                    # Проверяем все параметры модели
+                    for name, param in model.named_parameters():
+                        if param.device != device:
+                            logger.warning(f"Parameter {name} on wrong device: {param.device}, moving to {device}")
+                            param.data = param.data.to(device)
+                    
+                    # Проверяем буферы модели
+                    for name, buffer in model.named_buffers():
+                        if buffer.device != device:
+                            logger.warning(f"Buffer {name} on wrong device: {buffer.device}, moving to {device}")
+                            buffer.data = buffer.data.to(device)
+                except Exception as e:
+                    logger.warning(f"Error checking model device consistency: {e}")
                 
                 # Анализ речи на CPU
                 speech_timestamps = silero_vad.get_speech_timestamps(
