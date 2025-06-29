@@ -144,39 +144,10 @@ echo    %L_CYAN%Creating convenient bat files in root directory...%RESET%
 
 :: Create start_processing.bat
 echo @echo off > start_processing.bat
-echo chcp 65001 ^>nul >> start_processing.bat
-echo setlocal enabledelayedexpansion >> start_processing.bat
-echo. >> start_processing.bat
-echo echo. >> start_processing.bat
-echo echo ======================================== >> start_processing.bat
-echo echo 🎵 Audio Processing Pipeline v2.0 >> start_processing.bat
-echo echo ======================================== >> start_processing.bat
-echo echo. >> start_processing.bat
-echo echo 🆕 New features: >> start_processing.bat
-echo echo    - Modular architecture with /audio package >> start_processing.bat
-echo echo    - Speaker organization in folders >> start_processing.bat
-echo echo    - Enhanced GPU memory management >> start_processing.bat
-echo echo    - No duration limit option >> start_processing.bat
-echo echo. >> start_processing.bat
-echo. >> start_processing.bat
-echo :: Check if environment exists >> start_processing.bat
-echo if not exist "audio_environment" ^( >> start_processing.bat
-echo     echo ❌ Environment not found! >> start_processing.bat
-echo     echo. >> start_processing.bat
-echo     echo Run setup.bat and select option 1 to install the environment. >> start_processing.bat
-echo     echo. >> start_processing.bat
-echo     pause >> start_processing.bat
-echo     exit /b 1 >> start_processing.bat
-echo ^) >> start_processing.bat
-echo. >> start_processing.bat
-echo :: Activate environment >> start_processing.bat
-echo call system\instructions\activate_environment.bat >> start_processing.bat
-echo. >> start_processing.bat
-echo :: Start interactive processing >> start_processing.bat
-echo echo 🚀 Starting interactive audio processing... >> start_processing.bat
-echo echo. >> start_processing.bat
-echo echo 💡 The script will guide you through the process interactively. >> start_processing.bat
-echo echo. >> start_processing.bat
+echo cd /D "%~dp0" >> start_processing.bat
+echo set CONDA_ROOT_PREFIX=%cd%\audio_environment\conda >> start_processing.bat
+echo set INSTALL_ENV_DIR=%cd%\audio_environment\env >> start_processing.bat
+echo call "%CONDA_ROOT_PREFIX%\condabin\conda.bat" activate "%INSTALL_ENV_DIR%" >> start_processing.bat
 echo. >> start_processing.bat
 echo python system\scripts\audio_processing.py >> start_processing.bat
 echo. >> start_processing.bat
