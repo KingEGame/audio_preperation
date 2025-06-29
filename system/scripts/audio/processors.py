@@ -111,7 +111,7 @@ def process_parts_optimized(parts, file_temp_dir, steps, use_gpu, logger, model_
                 gpu_manager.cleanup(force=True)
             
             result = process_single_part_optimized(
-                part, idx, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager
+                part, idx, file_temp_dir, steps, use_gpu, False, logger, model_manager, gpu_manager
             )
             processed_parts.append(result)
             
@@ -124,7 +124,7 @@ def process_parts_optimized(parts, file_temp_dir, steps, use_gpu, logger, model_
     
     return processed_parts
 
-def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager):
+def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, force_cpu_vad, logger, model_manager, gpu_manager):
     """
     Оптимизированная обработка одной части аудио
     """
@@ -157,7 +157,8 @@ def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, logg
             try:
                 logger.info(f"Silence removal part {idx+1}")
                 no_silence = remove_silence_with_silero_optimized(
-                    cleaned, use_gpu=use_gpu, model_manager=model_manager, gpu_manager=gpu_manager, logger=logger
+                    cleaned, use_gpu=use_gpu, force_cpu_vad=force_cpu_vad,
+                    model_manager=model_manager, gpu_manager=gpu_manager, logger=logger
                 )
             except Exception as e:
                 logger.error(f"Error silence removal part {idx+1}: {e}")
@@ -184,7 +185,7 @@ def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, logg
         logger.error(f"Critical error processing part {idx+1}: {e}")
         return [str(part_path)]
 
-def process_chunk_with_metadata(chunk_path, chunk_info, steps, use_gpu, logger, 
+def process_chunk_with_metadata(chunk_path, chunk_info, steps, use_gpu, force_cpu_vad, logger, 
                                model_manager, gpu_manager, temp_dir):
     """
     Обработка одного чанка с метаданными и многопоточностью
@@ -208,8 +209,8 @@ def process_chunk_with_metadata(chunk_path, chunk_info, steps, use_gpu, logger,
         if 'vad' in steps:
             logger.info(f"Silence removal chunk {chunk_info.get('chunk_number', 'unknown')}")
             no_silence = remove_silence_with_silero_optimized(
-                cleaned, use_gpu=use_gpu, model_manager=model_manager, 
-                gpu_manager=gpu_manager, logger=logger
+                cleaned, use_gpu=use_gpu, force_cpu_vad=force_cpu_vad,
+                model_manager=model_manager, gpu_manager=gpu_manager, logger=logger
             )
         else:
             no_silence = cleaned
@@ -218,17 +219,28 @@ def process_chunk_with_metadata(chunk_path, chunk_info, steps, use_gpu, logger,
         if 'diar' in steps:
             logger.info(f"Diarization chunk {chunk_info.get('chunk_number', 'unknown')}")
             
-            # Блокируем доступ к диаризации
-            with DIARIZATION_LOCK:
-                logger.info(f"Acquired diarization lock for chunk {chunk_info.get('chunk_number', 'unknown')}")
-                diarized_files = diarize_with_pyannote_optimized(
-                    no_silence, temp_dir / 'diarized', 
-                    min_segment_duration=0.1, chunk_info=chunk_info,
-                    model_manager=model_manager, gpu_manager=gpu_manager, logger=logger
-                )
-                logger.info(f"Released diarization lock for chunk {chunk_info.get('chunk_number', 'unknown')}")
-            
-            return diarized_files if isinstance(diarized_files, list) else [diarized_files]
+            try:
+                # Блокируем доступ к диаризации
+                with DIARIZATION_LOCK:
+                    logger.info(f"Acquired diarization lock for chunk {chunk_info.get('chunk_number', 'unknown')}")
+                    diarized_files = diarize_with_pyannote_optimized(
+                        no_silence, temp_dir / 'diarized', 
+                        min_segment_duration=0.1, chunk_info=chunk_info,
+                        model_manager=model_manager, gpu_manager=gpu_manager, logger=logger
+                    )
+                    logger.info(f"Released diarization lock for chunk {chunk_info.get('chunk_number', 'unknown')}")
+                
+                # Проверяем результат диаризации
+                if isinstance(diarized_files, list) and len(diarized_files) > 0:
+                    return diarized_files
+                else:
+                    logger.warning(f"Diarization returned no files for chunk {chunk_info.get('chunk_number', 'unknown')}, using processed file")
+                    return [no_silence]
+                    
+            except Exception as e:
+                logger.error(f"Error during diarization for chunk {chunk_info.get('chunk_number', 'unknown')}: {e}")
+                logger.warning(f"Using processed file without speaker separation for chunk {chunk_info.get('chunk_number', 'unknown')}")
+                return [no_silence]
         else:
             return [no_silence]
             
@@ -237,7 +249,7 @@ def process_chunk_with_metadata(chunk_path, chunk_info, steps, use_gpu, logger,
         return [str(chunk_path)]
 
 def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_duration,
-                                       min_speaker_segment, split_method, use_gpu, 
+                                       min_speaker_segment, split_method, use_gpu, force_cpu_vad,
                                        logger, model_manager, gpu_manager):
     """
     Многопоточная обработка одного файла с организацией по спикерам
@@ -306,7 +318,7 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
             for i, (part, chunk_info) in enumerate(zip(parts, chunk_infos)):
                 future = executor.submit(
                     process_chunk_with_metadata,
-                    part, chunk_info, steps, use_gpu, logger,
+                    part, chunk_info, steps, use_gpu, force_cpu_vad, logger,
                     model_manager, gpu_manager, temp_dir
                 )
                 future_to_chunk[future] = chunk_info
@@ -330,12 +342,24 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
         # 3. Организация файлов по спикерам
         if 'diar' in steps and speaker_folders:
             logger.info("Stage 5: Organizing speakers to output")
-            from .stages import organize_speakers_to_output
-            organized_speakers = organize_speakers_to_output(speaker_folders, output_dir, logger)
-            logger.info(f"Organized {len(organized_speakers)} speakers")
-            return organized_speakers
+            try:
+                from .stages import organize_speakers_to_output
+                organized_speakers = organize_speakers_to_output(speaker_folders, output_dir, logger)
+                logger.info(f"Organized {len(organized_speakers)} speakers")
+                return organized_speakers
+            except Exception as e:
+                logger.error(f"Error organizing speakers: {e}")
+                logger.warning("Returning empty speaker organization")
+                return {}
         else:
-            logger.info("No diarization performed or no speaker files found")
+            if 'diar' in steps:
+                logger.warning("No speaker folders found after diarization")
+                logger.info("This may be due to:")
+                logger.info("1. No speech detected in audio")
+                logger.info("2. Diarization token issues")
+                logger.info("3. Model access problems")
+            else:
+                logger.info("Diarization stage not requested")
             return {}
             
     finally:
@@ -348,7 +372,7 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
             logger.warning(f"Could not clean up temporary directory {temp_dir}: {e}")
 
 def process_multiple_files_parallel_optimized(files, output_dir, steps, chunk_duration,
-                                            min_speaker_segment, split_method, use_gpu, logger):
+                                            min_speaker_segment, split_method, use_gpu, force_cpu_vad, logger):
     """
     Параллельная обработка нескольких файлов с многопоточностью
     """
@@ -371,7 +395,7 @@ def process_multiple_files_parallel_optimized(files, output_dir, steps, chunk_du
                 future = executor.submit(
                     process_file_multithreaded_optimized,
                     file_path, output_dir, steps, chunk_duration,
-                    min_speaker_segment, split_method, use_gpu, logger,
+                    min_speaker_segment, split_method, use_gpu, force_cpu_vad, logger,
                     model_manager, gpu_manager
                 )
                 future_to_file[future] = file_path

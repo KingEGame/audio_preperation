@@ -59,6 +59,7 @@ def main():
     parser.add_argument('--split_method', type=str, default='word_boundary', choices=['simple', 'word_boundary'],
                         help='Splitting method: simple or word_boundary')
     parser.add_argument('--use_gpu', action='store_true', help='Use GPU for VAD (default CPU for stability)')
+    parser.add_argument('--force_cpu_vad', action='store_true', help='Force CPU usage for VAD (for compatibility)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     parser.add_argument('--interactive', action='store_true', help='Interactive mode with parameter prompts')
     parser.add_argument('--parallel', action='store_true', default=True, help='Use parallel processing (enabled by default)')
@@ -83,6 +84,15 @@ def main():
         args.use_gpu = True  # Automatically enable GPU
     else:
         print("⚠ GPU not available, using CPU")
+    
+    # VAD GPU usage logic
+    if args.force_cpu_vad:
+        print("⚠ VAD forced to use CPU for compatibility")
+        args.use_gpu = False
+    elif gpu_available:
+        print("✓ VAD will attempt GPU usage with CPU fallback")
+    else:
+        print("⚠ VAD using CPU (GPU not available)")
     
     # Determine optimal number of processes
     optimal_workers = get_optimal_workers()
@@ -202,6 +212,71 @@ def main():
         print("Check the path and try again.")
         return
 
+    # Check diarization token if diarization is requested
+    if 'diar' in steps:
+        if not token_exists():
+            print(f"\n{'='*60}")
+            print("DIARIZATION TOKEN NOT FOUND")
+            print(f"{'='*60}")
+            print("Diarization requires a HuggingFace token.")
+            print()
+            print("Options:")
+            print("1. Setup diarization now (recommended)")
+            print("2. Continue without diarization")
+            print("3. Cancel processing")
+            print()
+            choice = input("Enter choice (1-3): ").strip()
+            
+            if choice == "1":
+                print("\nSetting up diarization...")
+                import subprocess
+                try:
+                    subprocess.run(["system\\fixes\\quick_diarization_fix.bat"], check=True)
+                    print("Diarization setup completed!")
+                except subprocess.CalledProcessError:
+                    print("Diarization setup failed. Continuing without diarization.")
+                    steps = [s for s in steps if s != 'diar']
+                    print(f"Updated steps: {', '.join(steps)}")
+            elif choice == "2":
+                print("Continuing without diarization...")
+                steps = [s for s in steps if s != 'diar']
+                print(f"Updated steps: {', '.join(steps)}")
+            else:
+                print("Processing cancelled.")
+                return
+        else:
+            token = get_token()
+            if not token:
+                print(f"\n{'='*60}")
+                print("DIARIZATION TOKEN IS EMPTY")
+                print(f"{'='*60}")
+                print("The token file exists but is empty.")
+                print()
+                print("Options:")
+                print("1. Setup diarization now (recommended)")
+                print("2. Continue without diarization")
+                print("3. Cancel processing")
+                print()
+                choice = input("Enter choice (1-3): ").strip()
+                
+                if choice == "1":
+                    print("\nSetting up diarization...")
+                    import subprocess
+                    try:
+                        subprocess.run(["system\\fixes\\quick_diarization_fix.bat"], check=True)
+                        print("Diarization setup completed!")
+                    except subprocess.CalledProcessError:
+                        print("Diarization setup failed. Continuing without diarization.")
+                        steps = [s for s in steps if s != 'diar']
+                        print(f"Updated steps: {', '.join(steps)}")
+                elif choice == "2":
+                    print("Continuing without diarization...")
+                    steps = [s for s in steps if s != 'diar']
+                    print(f"Updated steps: {', '.join(steps)}")
+                else:
+                    print("Processing cancelled.")
+                    return
+
     files = []
     if input_path.is_file():
         files = [input_path]
@@ -235,7 +310,7 @@ def main():
         organized_speakers = process_multiple_files_parallel_optimized(
             files, output_dir, steps, chunk_duration,
             args.min_speaker_segment if not args.no_duration_limit else 0.0, 
-            split_method, args.use_gpu, logger
+            split_method, args.use_gpu, args.force_cpu_vad, logger
         )
         
         # Показываем результаты
@@ -272,7 +347,7 @@ def main():
                     organized_speakers = process_file_multithreaded_optimized(
                         audio, output_dir, steps, chunk_duration,
                         args.min_speaker_segment if not args.no_duration_limit else 0.0, 
-                        split_method, args.use_gpu, 
+                        split_method, args.use_gpu, args.force_cpu_vad,
                         logger, model_manager, gpu_manager
                     )
                     

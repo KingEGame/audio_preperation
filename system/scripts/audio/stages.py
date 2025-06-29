@@ -80,8 +80,8 @@ def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_
 
 def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_duration_ms=250, 
                                        min_silence_duration_ms=400, window_size_samples=1536, 
-                                       sample_rate=16000, use_gpu=False, model_manager=None, 
-                                       gpu_manager=None, logger=None):
+                                       sample_rate=16000, use_gpu=False, force_cpu_vad=False,
+                                       model_manager=None, gpu_manager=None, logger=None):
     """
     Оптимизированное удаление тишины с лучшим управлением памятью
     """
@@ -105,10 +105,16 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
     
     logger.info(f"Starting silence removal from file: {input_wav}")
     
-    # FIX: Force CPU usage for Silero VAD to avoid "RuntimeError: NYI" issue
-    # This is a known compatibility issue with Silero VAD and CUDA
-    device = torch.device("cpu")
-    logger.info(f"Using device for VAD: {device} (forced CPU for compatibility)")
+    # Определяем устройство - учитываем force_cpu_vad
+    device = torch.device("cpu")  # По умолчанию CPU
+    if use_gpu and not force_cpu_vad and gpu_manager and gpu_manager.device.type == "cuda":
+        device = gpu_manager.device
+        logger.info(f"Attempting to use GPU for VAD: {device}")
+    else:
+        if force_cpu_vad:
+            logger.info(f"Using CPU for VAD: {device} (forced)")
+        else:
+            logger.info(f"Using CPU for VAD: {device}")
     
     try:
         # Загружаем аудио
@@ -120,14 +126,24 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
             wav = torchaudio.functional.resample(wav, sr, sample_rate)
             sr = sample_rate
         
-        # Получаем кэшированную модель (всегда на CPU)
+        # Получаем кэшированную модель
         if model_manager:
             model = model_manager.get_silero_vad_model()
-            # Force model to CPU to avoid GPU compatibility issues
-            model = model.cpu()
         else:
             model = silero_vad.load_silero_vad()
-            model = model.cpu()  # Force CPU usage
+        
+        # Пытаемся использовать GPU, но с fallback на CPU
+        try:
+            if device.type == "cuda":
+                model = model.to(device)
+                logger.info(f"Model moved to GPU: {device}")
+            else:
+                model = model.cpu()
+                logger.info("Model using CPU")
+        except Exception as e:
+            logger.warning(f"Failed to move model to {device}, using CPU: {e}")
+            device = torch.device("cpu")
+            model = model.cpu()
         
         # Анализ речи
         speech_timestamps = silero_vad.get_speech_timestamps(
@@ -155,6 +171,65 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
         
         return output_wav
         
+    except RuntimeError as e:
+        if "NYI" in str(e) and device.type == "cuda":
+            logger.warning(f"GPU VAD failed with NYI error, falling back to CPU: {e}")
+            logger.info("Retrying with CPU...")
+            
+            # Fallback на CPU
+            device = torch.device("cpu")
+            logger.info(f"Using device for VAD: {device} (fallback)")
+            
+            try:
+                # Перезагружаем аудио на CPU
+                wav, sr = torchaudio.load(input_wav)
+                wav = wav.to(device)
+                
+                # Ресэмплируем если нужно
+                if sr != sample_rate:
+                    wav = torchaudio.functional.resample(wav, sr, sample_rate)
+                    sr = sample_rate
+                
+                # Получаем модель на CPU
+                if model_manager:
+                    model = model_manager.get_silero_vad_model()
+                else:
+                    model = silero_vad.load_silero_vad()
+                model = model.cpu()
+                
+                # Анализ речи на CPU
+                speech_timestamps = silero_vad.get_speech_timestamps(
+                    wav[0],
+                    model=model,
+                    sampling_rate=sr,
+                    min_speech_duration_ms=min_speech_duration_ms,
+                    min_silence_duration_ms=min_silence_duration_ms,
+                    window_size_samples=window_size_samples
+                )
+                
+                if not speech_timestamps:
+                    logger.warning("Speech not found, returning original file.")
+                    return input_wav
+                
+                # Создаем аудио без тишины
+                speech_audio = torch.cat([wav[:, ts['start']:ts['end']] for ts in speech_timestamps], dim=1)
+                torchaudio.save(output_wav, speech_audio.cpu(), sr)
+                logger.info(f"File without silence saved (CPU fallback): {output_wav}")
+                
+                # Очищаем
+                del wav, speech_audio
+                if gpu_manager:
+                    gpu_manager.cleanup()
+                
+                return output_wav
+                
+            except Exception as cpu_error:
+                logger.error(f"CPU fallback also failed: {cpu_error}")
+                return input_wav
+        else:
+            logger.error(f"Error during silence removal: {e}")
+            return input_wav
+        
     except Exception as e:
         logger.error(f"Error during silence removal: {e}")
         return input_wav
@@ -170,12 +245,14 @@ def diarize_with_pyannote_optimized(input_audio, output_dir, min_segment_duratio
     
     # Проверяем доступность токена
     if not token_exists():
-        logger.error("HuggingFace token file not found. Run setup_diarization.py")
+        logger.warning("HuggingFace token file not found. Skipping diarization.")
+        logger.info("To enable diarization, run: setup_diarization.bat")
         return input_audio
     
     token = get_token()
     if not token:
-        logger.error("HuggingFace token is empty. Run setup_diarization.py")
+        logger.warning("HuggingFace token is empty. Skipping diarization.")
+        logger.info("To enable diarization, run: setup_diarization.bat")
         return input_audio
 
     # Создаем выходную папку
@@ -234,6 +311,10 @@ def diarize_with_pyannote_optimized(input_audio, output_dir, min_segment_duratio
         
     except Exception as e:
         logger.error(f"Error during diarization: {e}")
+        logger.warning("Diarization failed, returning original file without speaker separation")
+        logger.info("To fix diarization issues:")
+        logger.info("1. Run: setup_diarization.bat")
+        logger.info("2. Or run: test_diarization_token.bat")
         return input_audio
 
 def create_speaker_segments_with_metadata(input_audio, diarization_result, output_dir, 
