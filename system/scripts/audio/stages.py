@@ -159,6 +159,47 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
         else:
             logger.info(f"Using CPU for VAD: {device}")
     
+    def load_vad_model_on_device(target_device):
+        """Загрузить VAD модель на указанное устройство"""
+        try:
+            # Очищаем кэш CUDA перед загрузкой
+            if target_device.type == "cuda":
+                torch.cuda.empty_cache()
+            
+            # Загружаем модель заново
+            model = silero_vad.load_silero_vad()
+            
+            # Перемещаем модель на устройство
+            model = model.to(target_device)
+            
+            # Принудительно перемещаем все внутренние компоненты
+            model.eval()  # Переводим в режим оценки
+            
+            # Проверяем и исправляем устройство всех параметров
+            for param in model.parameters():
+                if param.device != target_device:
+                    param.data = param.data.to(target_device)
+            
+            # Проверяем и исправляем устройство всех буферов
+            for buffer in model.buffers():
+                if buffer.device != target_device:
+                    buffer.data = buffer.data.to(target_device)
+            
+            # Дополнительная проверка для модулей
+            for module in model.modules():
+                if hasattr(module, 'weight') and module.weight is not None:
+                    if module.weight.device != target_device:
+                        module.weight.data = module.weight.data.to(target_device)
+                if hasattr(module, 'bias') and module.bias is not None:
+                    if module.bias.device != target_device:
+                        module.bias.data = module.bias.data.to(target_device)
+            
+            return model
+            
+        except Exception as e:
+            logger.error(f"Error loading VAD model on {target_device}: {e}")
+            raise
+    
     try:
         # Загружаем аудио
         wav, sr = torchaudio.load(input_wav)
@@ -168,19 +209,8 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
             wav = torchaudio.functional.resample(wav, sr, sample_rate)
             sr = sample_rate
         
-        # Получаем модель VAD на правильном устройстве
-        if model_manager:
-            try:
-                model = model_manager.get_silero_vad_model()
-                # Убеждаемся, что модель на правильном устройстве
-                model = model.to(device)
-            except Exception as e:
-                logger.warning(f"Failed to get cached VAD model: {e}")
-                model = silero_vad.load_silero_vad()
-                model = model.to(device)
-        else:
-            model = silero_vad.load_silero_vad()
-            model = model.to(device)
+        # Загружаем модель на правильное устройство
+        model = load_vad_model_on_device(device)
         
         # Перемещаем аудио на то же устройство, что и модель
         wav = wav.to(device)
@@ -188,22 +218,6 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
         # Проверяем, что все на одном устройстве
         logger.info(f"Audio tensor device: {wav.device}")
         logger.info(f"Model device: {next(model.parameters()).device}")
-        
-        # Дополнительная проверка устройства модели
-        try:
-            # Проверяем все параметры модели
-            for name, param in model.named_parameters():
-                if param.device != device:
-                    logger.warning(f"Parameter {name} on wrong device: {param.device}, moving to {device}")
-                    param.data = param.data.to(device)
-            
-            # Проверяем буферы модели
-            for name, buffer in model.named_buffers():
-                if buffer.device != device:
-                    logger.warning(f"Buffer {name} on wrong device: {buffer.device}, moving to {device}")
-                    buffer.data = buffer.data.to(device)
-        except Exception as e:
-            logger.warning(f"Error checking model device consistency: {e}")
         
         # Анализ речи
         speech_timestamps = silero_vad.get_speech_timestamps(
@@ -225,7 +239,7 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
         logger.info(f"File without silence saved: {output_wav}")
         
         # Очищаем
-        del wav, speech_audio
+        del wav, speech_audio, model
         if gpu_manager:
             gpu_manager.cleanup()
         
@@ -252,24 +266,7 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
                     sr = sample_rate
                 
                 # Загружаем модель на CPU
-                model = silero_vad.load_silero_vad()
-                model = model.to(device)
-                
-                # Дополнительная проверка устройства модели для CPU
-                try:
-                    # Проверяем все параметры модели
-                    for name, param in model.named_parameters():
-                        if param.device != device:
-                            logger.warning(f"Parameter {name} on wrong device: {param.device}, moving to {device}")
-                            param.data = param.data.to(device)
-                    
-                    # Проверяем буферы модели
-                    for name, buffer in model.named_buffers():
-                        if buffer.device != device:
-                            logger.warning(f"Buffer {name} on wrong device: {buffer.device}, moving to {device}")
-                            buffer.data = buffer.data.to(device)
-                except Exception as e:
-                    logger.warning(f"Error checking model device consistency: {e}")
+                model = load_vad_model_on_device(device)
                 
                 # Анализ речи на CPU
                 speech_timestamps = silero_vad.get_speech_timestamps(
@@ -291,7 +288,7 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
                 logger.info(f"File without silence saved with CPU: {output_wav}")
                 
                 # Очищаем
-                del wav, speech_audio
+                del wav, speech_audio, model
                 if gpu_manager:
                     gpu_manager.cleanup()
                 

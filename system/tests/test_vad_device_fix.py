@@ -46,23 +46,8 @@ def test_vad_device_fix():
         torchaudio.save(test_audio_path, audio, sample_rate)
         print(f"Created test audio: {test_audio_path}")
         
-        # Test VAD with GPU
-        print("\nTesting VAD with GPU...")
-        try:
-            result = remove_silence_with_silero_optimized(
-                test_audio_path,
-                use_gpu=True,
-                force_cpu_vad=False,
-                model_manager=model_manager,
-                gpu_manager=gpu_manager,
-                logger=logger
-            )
-            print(f"✓ GPU VAD test passed: {result}")
-        except Exception as e:
-            print(f"✗ GPU VAD test failed: {e}")
-        
-        # Test VAD with CPU fallback
-        print("\nTesting VAD with CPU fallback...")
+        # Test VAD with CPU (should work reliably)
+        print("\nTesting VAD with CPU...")
         try:
             result = remove_silence_with_silero_optimized(
                 test_audio_path,
@@ -75,6 +60,27 @@ def test_vad_device_fix():
             print(f"✓ CPU VAD test passed: {result}")
         except Exception as e:
             print(f"✗ CPU VAD test failed: {e}")
+            import traceback
+            traceback.print_exc()
+        
+        # Test VAD with GPU (if available)
+        if torch.cuda.is_available():
+            print("\nTesting VAD with GPU...")
+            try:
+                result = remove_silence_with_silero_optimized(
+                    test_audio_path,
+                    use_gpu=True,
+                    force_cpu_vad=False,
+                    model_manager=model_manager,
+                    gpu_manager=gpu_manager,
+                    logger=logger
+                )
+                print(f"✓ GPU VAD test passed: {result}")
+            except Exception as e:
+                print(f"✗ GPU VAD test failed: {e}")
+                print("This might be expected if there are CUDA compatibility issues")
+                import traceback
+                traceback.print_exc()
         
         # Cleanup
         if os.path.exists(test_audio_path):
