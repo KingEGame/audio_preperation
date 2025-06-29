@@ -30,8 +30,11 @@ call system\instructions\activate_environment.bat || (
 )
 
 echo    %L_YELLOW%Installing build tools...%RESET%
-pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-    echo %L_YELLOW%Warning: Failed to install cmake, trying alternative approach...%RESET%
+conda install -c conda-forge wheel setuptools cmake -y || (
+    echo %L_YELLOW%Warning: Failed to install cmake via conda, trying pip...%RESET%
+    pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+        echo %L_YELLOW%Warning: Failed to install cmake, trying alternative approach...%RESET%
+    )
 )
 
 echo    %L_YELLOW%Checking if PyAnnote is already installed...%RESET%

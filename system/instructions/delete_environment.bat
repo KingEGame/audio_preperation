@@ -43,6 +43,9 @@ echo    %L_CYAN%3. Removing created batch files...%RESET%
 del ..\..\start_processing.bat
 del ..\..\activate_environment.bat
 del ..\..\cleanup_temp.bat
+del ..\..\hf_token.bat
+del ..\..\Access
+
 
 rem ─── завершение ────────────────────────────────────────────────────────────
 echo(

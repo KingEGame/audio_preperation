@@ -99,6 +99,7 @@ echo.
 echo    %L_CYAN%Fixing PyTorch installation...%RESET%
 echo    %L_YELLOW%This will reinstall PyTorch with proper CUDA support%RESET%
 echo.
+pip uninstall torch torchaudio torchvision -y
 call system\instructions\install_pytorch.bat
 echo.
 echo    %L_GREEN%✅ PyTorch installation fixed!%RESET%
