@@ -1,6 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
-
+cd /D "%~dp0"
+echo "%CD%"| findstr /C:" " >nul
 :: Generate the ESC character
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 
@@ -12,34 +13,20 @@ set "L_CYAN=%ESC%[96m"
 set "L_BLUE=%ESC%[94m"
 set "RESET=%ESC%[0m"
 
-:: Portable Conda Environment Activation
+@rem deactivate existing conda envs as needed to avoid conflicts
+(call conda deactivate && call conda deactivate && call conda deactivate) 2>nul
 
-set INSTALL_DIR=%cd%\audio_environment
+@rem config
 set CONDA_ROOT_PREFIX=%cd%\audio_environment\conda
 set INSTALL_ENV_DIR=%cd%\audio_environment\env
-:: Check if portable conda exists
-if not exist "!CONDA_ROOT_PREFIX!\_conda.exe" (
-    echo %L_RED%Portable Conda not found! Run system\instructions\install_portable_conda.bat first.%RESET%
-    exit /b 1
-)
 
-:: Check if environment exists
-if not exist "!INSTALL_ENV_DIR!\python.exe" (
-    echo %L_RED%Environment not found! Run system\instructions\install_portable_conda.bat first.%RESET%
-    exit /b 1
-)
-
-:: Set environment variables
-
-set CONDA_DEFAULT_ENV=audio_env
-set CONDA_PROMPT_MODIFIER=(audio_env) 
-
-:: Activate the environment using portable conda
+@rem figure out whether git and conda need to be installed
 @rem check if conda environment was actually created
 if not exist "%INSTALL_ENV_DIR%\python.exe" ( echo. && echo Conda environment is empty. && goto end )
 
 @rem activate installer env
 call "%CONDA_ROOT_PREFIX%\condabin\conda.bat" activate "%INSTALL_ENV_DIR%" || ( echo. && echo Miniconda hook not found. && goto end )
+
 
 :: Verify we're using the right Python
 python -c "import sys; print('Python path:', sys.executable)" | findstr "audio_environment" >nul

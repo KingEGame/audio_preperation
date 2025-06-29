@@ -25,11 +25,11 @@ echo    5) Fix Diarization token (HuggingFace access)
 echo    6) Fix Environment activation (conda issues)
 echo    7) Fix GPU detection (CUDA problems)
 echo    8) Fix Dependencies conflicts (package conflicts)
+echo    9) Fix SpeechBrain installation (compilation issues)
 echo.
 echo    %L_CYAN%ADVANCED FIXES%RESET%
-echo    9) Fix GPU/CUDA support (advanced GPU fix)
-echo    10) Fix Diarization access (advanced diarization fix)
-echo    11) Install optimized dependencies (performance fix)
+echo    10) Fix GPU/CUDA support (advanced GPU fix)
+echo    11) Fix Diarization access (advanced diarization fix)
 echo    12) Install without diarization (minimal setup)
 echo    13) Force Install Requirements (force reinstall main requirements)
 echo.
@@ -51,9 +51,9 @@ if "%UserChoice%"=="5" goto FixDiarization
 if "%UserChoice%"=="6" goto FixEnvironment
 if "%UserChoice%"=="7" goto FixGPU
 if "%UserChoice%"=="8" goto FixDependencies
-if "%UserChoice%"=="9" goto FixGPUAdvanced
-if "%UserChoice%"=="10" goto FixDiarizationAdvanced
-if "%UserChoice%"=="11" goto InstallOptimized
+if "%UserChoice%"=="9" goto FixSpeechBrain
+if "%UserChoice%"=="10" goto FixGPUAdvanced
+if "%UserChoice%"=="11" goto FixDiarizationAdvanced
 if "%UserChoice%"=="12" goto InstallWithoutDiarization
 if "%UserChoice%"=="13" goto ForceInstallRequirements
 if "%UserChoice%"=="14" goto DiagnoseIssues
@@ -190,6 +190,17 @@ echo    %L_CYAN%Installing missing dependencies...%RESET%
 pip install -r system\requirements\requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org
 echo.
 echo    %L_GREEN%✅ Dependencies conflicts fixed!%RESET%
+pause
+goto End
+
+:FixSpeechBrain
+echo.
+echo    %L_CYAN%Fixing SpeechBrain installation...%RESET%
+echo    %L_YELLOW%This will reinstall SpeechBrain with fixed dependencies%RESET%
+echo.
+call system\fixes\install_speechbrain_fixed.bat
+echo.
+echo    %L_GREEN%✅ SpeechBrain installation fixed!%RESET%
 pause
 goto End
 

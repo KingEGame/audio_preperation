@@ -75,27 +75,44 @@ echo    %L_CYAN%Installing PyTorch with CUDA support (FIRST)...%RESET%
 echo    %L_YELLOW%This ensures PyTorch is installed before other packages to avoid conflicts.%RESET%
 call system\instructions\install_pytorch.bat
 
-:: Install remaining dependencies from main requirements file (excluding PyTorch packages)
-echo    %L_CYAN%Installing remaining dependencies...%RESET%
-echo    %L_YELLOW%Note: PyTorch was installed first, now installing other dependencies...%RESET%
 
-pip install -r system\requirements\requirements.txt  || (
-    echo %L_RED%Failed to install remaining dependencies!%RESET%
-    echo Please check the error messages above and try again.
+:: Setup diarization automatically
+echo    %L_CYAN%Installing diarization packages (optional)...%RESET%
+echo    %L_YELLOW%Note: These packages may fail if cmake/C++ compiler is not available.%RESET%
+echo.
+echo    %L_CYAN%Setting up speaker diarization...%RESET%
+echo    %L_YELLOW%This will guide you through HuggingFace token setup.%RESET%
+echo.
+call system\instructions\setup_diarization.bat || (
+    echo %L_YELLOW%Warning: Failed to setup diarization, continuing...%RESET%
     pause
     exit /b 1
 )
 
-:: Install diarization packages separately (optional, may fail)
-echo    %L_CYAN%Installing diarization packages (optional)...%RESET%
-echo    %L_YELLOW%Note: These packages may fail if cmake/C++ compiler is not available.%RESET%
-
 :: Try to install sentencepiece from pre-built wheels
 echo    %L_CYAN%Installing sentencepiece from pre-built wheels...%RESET%
-conda install sentencepiece -y || (
+pip install sentencepiece || (
     echo %L_YELLOW%Warning: sentencepiece installation failed.%RESET%
     echo %L_YELLOW%This is normal - will use alternative tokenization.%RESET%
+    call system\fixes\install_sentencepiece_fixed.bat
 )
+
+:: Install remaining dependencies from main requirements file (excluding PyTorch packages)
+echo    %L_CYAN%Installing remaining dependencies...%RESET%
+echo    %L_YELLOW%Note: PyTorch was installed first, now installing other dependencies...%RESET%
+
+pip install -r ..\requirements\requirements.txt  || (
+    echo %L_RED%Failed to install remaining dependencies!%RESET%
+    echo Please check the error messages above and try again.
+    pause
+)
+
+echo %L_CYAN%Install speechbrain%RESET%
+pip install speechbrain>=1.0.0,<2.0.0 || (
+    echo %L_RED%Failed to install speechbrain!%RESET%
+    echo %L_YELLOW%This is normal - will use alternative tokenization.%RESET%
+    call system\fixes\install_speechbrain_fixed.bat
+)   
 
 :: Install FFmpeg using our download script
 echo    %L_CYAN%Installing FFmpeg...%RESET%
@@ -112,12 +129,7 @@ if /i "!GLOBAL_FFMPEG!"=="Y" (
     call system\instructions\install_ffmpeg_global.bat
 )
 
-:: Setup diarization automatically
-echo.
-echo    %L_CYAN%Setting up speaker diarization...%RESET%
-echo    %L_YELLOW%This will guide you through HuggingFace token setup.%RESET%
-echo.
-call system\instructions\setup_diarization.bat
+
 
 :: Create convenient bat files in root directory
 echo.
@@ -168,74 +180,13 @@ echo echo. >> start_processing.bat
 echo pause >> start_processing.bat
 
 :: Create activate_environment.bat
-echo @echo off > activate_environment.bat
-echo chcp 65001 ^>nul >> activate_environment.bat
-echo setlocal enabledelayedexpansion >> activate_environment.bat
-echo. >> activate_environment.bat
-echo echo. >> activate_environment.bat
-echo echo ======================================== >> activate_environment.bat
-echo echo 🐍 Activate Environment - Audio Processing Pipeline v2.0 >> activate_environment.bat
-echo echo ======================================== >> activate_environment.bat
-echo echo. >> activate_environment.bat
-echo echo 🆕 New modular architecture with /audio package >> activate_environment.bat
-echo echo. >> activate_environment.bat
-echo. >> activate_environment.bat
-echo :: Generate the ESC character >> activate_environment.bat
-echo for /F %%%%a in ^('echo prompt $E ^| cmd'^) do set "ESC=%%%%a" >> activate_environment.bat
-echo. >> activate_environment.bat
-echo :: Colors >> activate_environment.bat
-echo set "L_RED=%%ESC%%[91m" >> activate_environment.bat
-echo set "L_GREEN=%%ESC%%[92m" >> activate_environment.bat
-echo set "L_YELLOW=%%ESC%%[93m" >> activate_environment.bat
-echo set "L_CYAN=%%ESC%%[96m" >> activate_environment.bat
-echo set "L_BLUE=%%ESC%%[94m" >> activate_environment.bat
-echo set "RESET=%%ESC%%[0m" >> activate_environment.bat
-echo. >> activate_environment.bat
-echo :: Portable Conda Environment Activation >> activate_environment.bat
-echo. >> activate_environment.bat
-echo set INSTALL_DIR=%%cd%%\..\audio_environment >> activate_environment.bat
-echo set CONDA_ROOT_PREFIX=%%cd%%\audio_environment\conda >> activate_environment.bat
-echo set INSTALL_ENV_DIR=%%cd%%\audio_environment\env >> activate_environment.bat
-echo :: Check if portable conda exists >> activate_environment.bat
-echo if not exist "^!CONDA_ROOT_PREFIX^!\_conda.exe" ^( >> activate_environment.bat
-echo     echo %%L_RED%%Portable Conda not found^! Run system\instructions\install_portable_conda.bat first.%%RESET%% >> activate_environment.bat
-echo     exit /b 1 >> activate_environment.bat
-echo ^) >> activate_environment.bat
-echo. >> activate_environment.bat
-echo :: Check if environment exists >> activate_environment.bat
-echo if not exist "^!INSTALL_ENV_DIR^!\python.exe" ^( >> activate_environment.bat
-echo     echo %%L_RED%%Environment not found^! Run system\instructions\install_portable_conda.bat first.%%RESET%% >> activate_environment.bat
-echo     exit /b 1 >> activate_environment.bat
-echo ^) >> activate_environment.bat
-echo. >> activate_environment.bat
-echo :: Set environment variables >> activate_environment.bat
-echo. >> activate_environment.bat
-echo set CONDA_DEFAULT_ENV=audio_env >> activate_environment.bat
-echo set CONDA_PROMPT_MODIFIER=^(audio_env^) >> activate_environment.bat
-echo. >> activate_environment.bat
-echo :: Activate the environment using portable conda >> activate_environment.bat
-echo @rem check if conda environment was actually created >> activate_environment.bat
-echo if not exist "%%INSTALL_ENV_DIR%%\python.exe" ^( echo. ^&^& echo Conda environment is empty. ^&^& goto end ^) >> activate_environment.bat
-echo. >> activate_environment.bat
-echo @rem activate installer env >> activate_environment.bat
-echo call "%%CONDA_ROOT_PREFIX%%\condabin\conda.bat" activate "%%INSTALL_ENV_DIR%%" ^|^| ^( echo. ^&^& echo Miniconda hook not found. ^&^& goto end ^) >> activate_environment.bat
-echo. >> activate_environment.bat
-echo :: Verify we're using the right Python >> activate_environment.bat
-echo python -c "import sys; print^('Python path:', sys.executable^)" ^| findstr "audio_environment" ^>nul >> activate_environment.bat
-echo if "%%ERRORLEVEL%%" NEQ "0" ^( >> activate_environment.bat
-echo     echo %%L_RED%%ERROR: Still using wrong Python^!%%RESET%% >> activate_environment.bat
-echo     echo Expected: ^!INSTALL_ENV_DIR^!\python.exe >> activate_environment.bat
-echo     echo Actual:  >> activate_environment.bat
-echo     python -c "import sys; print^(sys.executable^)" >> activate_environment.bat
-echo     exit /b 1 >> activate_environment.bat
-echo ^) >> activate_environment.bat
-echo. >> activate_environment.bat
-echo echo. >> activate_environment.bat
-echo echo ✅ Environment activated >> activate_environment.bat
-echo echo 🐍 Now you can use Python commands >> activate_environment.bat
-echo echo. >> activate_environment.bat
-echo echo. >> activate_environment.bat
-echo cmd /K >> activate_environment.bat
+@rem Create start_environment.bat to run AllTalk environment
+echo @echo off > start_environment.bat
+echo cd /D "%~dp0" >> start_environment.bat
+echo set CONDA_ROOT_PREFIX=%cd%\audio_environment\conda >> start_environment.bat
+echo set INSTALL_ENV_DIR=%cd%\audio_environment\env >> start_environment.bat
+echo call "%CONDA_ROOT_PREFIX%\condabin\conda.bat" activate "%INSTALL_ENV_DIR%" >> start_environment.bat
+
 
 :: Create cleanup_temp.bat
 echo @echo off > cleanup_temp.bat
