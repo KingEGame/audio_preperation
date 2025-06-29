@@ -55,7 +55,6 @@ def main():
                         help='Processing mode: single (sequential) or multithreaded (parallel, recommended)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     parser.add_argument('--interactive', action='store_true', help='Interactive mode with parameter prompts')
-    parser.add_argument('--enable_vad', action='store_true', help='Enable VAD (Voice Activity Detection) - may cause CUDA errors')
     args = parser.parse_args()
 
     # Pre-configured optimal parameters
@@ -63,24 +62,18 @@ def main():
         # Multi-threaded mode - optimized for speed
         chunk_duration = 600  # 10 minutes
         min_speaker_segment = 0.1  # 0.1 seconds (no limit)
-        steps = ['split', 'denoise', 'diar']  # VAD disabled by default
-        if args.enable_vad:
-            steps = ['split', 'denoise', 'vad', 'diar']  # Enable VAD if requested
+        steps = ['split', 'denoise', 'diar']  # Clean processing pipeline
         split_method = 'smart_multithreaded'  # New smart splitter
         use_gpu = True
-        force_cpu_vad = True  # Force CPU for VAD stability
         parallel = True
         workers = None  # Auto-determined
     else:
         # Single-threaded mode - optimized for stability
         chunk_duration = 600  # 10 minutes
         min_speaker_segment = 0.1  # 0.1 seconds (no limit)
-        steps = ['split', 'denoise', 'diar']  # VAD disabled by default
-        if args.enable_vad:
-            steps = ['split', 'denoise', 'vad', 'diar']  # Enable VAD if requested
+        steps = ['split', 'denoise', 'diar']  # Clean processing pipeline
         split_method = 'word_boundary'  # More stable for single-threaded
         use_gpu = True
-        force_cpu_vad = True  # Force CPU for stability
         parallel = False
         workers = 1
 
@@ -102,7 +95,6 @@ def main():
     else:
         print("⚠ GPU not available, using CPU")
         use_gpu = False
-        force_cpu_vad = True
     
     # Determine optimal number of processes for multithreaded mode
     if args.mode == 'multithreaded':
@@ -118,15 +110,12 @@ def main():
     
     # Show mode information
     print(f"✓ Processing mode: {args.mode}")
-    vad_status = "enabled" if args.enable_vad else "disabled (to avoid CUDA errors)"
     if args.mode == 'multithreaded':
         print(f"  - Smart multithreaded splitting with GPU acceleration")
         print(f"  - Parallel processing for maximum speed")
-        print(f"  - VAD: {vad_status}")
     else:
         print(f"  - Word boundary splitting for stability")
         print(f"  - Sequential processing for reliability")
-        print(f"  - VAD: {vad_status}")
     
     # Interactive mode or get parameters
     if args.interactive or not args.input or not args.output:
@@ -159,22 +148,8 @@ def main():
         print(f"  - Splitting method: {split_method}")
         print(f"  - Processing stages: {', '.join(steps)}")
         print(f"  - GPU acceleration: {'Yes' if use_gpu else 'No'}")
-        print(f"  - VAD device: {'CPU' if force_cpu_vad else 'GPU'}")
         print(f"  - Parallel processing: {'Yes' if parallel else 'No'}")
         print(f"  - Number of processes: {workers}")
-        
-        # Ask about VAD
-        print(f"\nVAD (Voice Activity Detection) is currently {'enabled' if args.enable_vad else 'disabled'}")
-        print("VAD removes silence from audio but may cause CUDA device errors.")
-        enable_vad_choice = input("Enable VAD? (y/n, default n): ").strip().lower()
-        if enable_vad_choice in ['y', 'yes', 'da']:
-            args.enable_vad = True
-            steps = ['split', 'denoise', 'vad', 'diar']
-            print("✓ VAD enabled (may cause CUDA errors)")
-        else:
-            args.enable_vad = False
-            steps = ['split', 'denoise', 'diar']
-            print("✓ VAD disabled (recommended for stability)")
         
         # Ask to change mode
         print(f"\nCurrent mode: {args.mode}")
@@ -189,20 +164,17 @@ def main():
                 if args.mode == 'multithreaded':
                     split_method = 'smart_multithreaded'
                     use_gpu = True
-                    force_cpu_vad = True
                     parallel = True
                     workers = get_optimal_workers()
                 else:
                     split_method = 'word_boundary'
                     use_gpu = True
-                    force_cpu_vad = True
                     parallel = False
                     workers = 1
                 
                 print(f"\nUpdated settings ({args.mode} mode):")
                 print(f"  - Splitting method: {split_method}")
                 print(f"  - GPU acceleration: {'Yes' if use_gpu else 'No'}")
-                print(f"  - VAD device: {'CPU' if force_cpu_vad else 'GPU'}")
                 print(f"  - Parallel processing: {'Yes' if parallel else 'No'}")
                 print(f"  - Number of processes: {workers}")
         
@@ -329,7 +301,7 @@ def main():
         
         organized_speakers = process_multiple_files_parallel_optimized(
             files, output_dir, steps, chunk_duration,
-            min_speaker_segment, split_method, use_gpu, force_cpu_vad, logger
+            min_speaker_segment, split_method, use_gpu, logger
         )
         
         # Показываем результаты
@@ -365,7 +337,7 @@ def main():
                     from audio.processors import process_file_multithreaded_optimized
                     organized_speakers = process_file_multithreaded_optimized(
                         audio, output_dir, steps, chunk_duration,
-                        min_speaker_segment, split_method, use_gpu, force_cpu_vad,
+                        min_speaker_segment, split_method, use_gpu,
                         logger, model_manager, gpu_manager
                     )
                     
@@ -452,7 +424,6 @@ def main():
         print(f"  - Total time: {total_time/60:.1f} minutes")
         print(f"  - GPU used: {'Yes' if gpu_available else 'No'}")
         print(f"  - Mode: Single-threaded for stability")
-        print(f"  - VAD: CPU (for compatibility)")
         print(f"  - Diarization: Sequential")
 
 if __name__ == "__main__":

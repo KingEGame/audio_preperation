@@ -3,6 +3,7 @@
 """
 
 import os
+import sys
 import math
 import subprocess
 import threading
@@ -13,10 +14,23 @@ import torch
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .utils import get_mp3_duration
 
-# Глобальные переменные для координации между потоками
-BOUNDARY_RESULTS = {}
+# Add the scripts directory to path for imports
+scripts_dir = Path(__file__).parent
+sys.path.append(str(scripts_dir))
+
+# Global locks for thread safety
+WHISPER_MODEL_LOCK = threading.Lock()
 SPLIT_COORDINATION_LOCK = threading.Lock()
-WHISPER_MODEL_LOCK = threading.Lock()  # Блокировка для доступа к Whisper модели
+
+# Global storage for boundary analysis results
+BOUNDARY_RESULTS = {}
+
+def get_central_temp_dir():
+    """Получить центральную временную папку в корне проекта"""
+    project_root = Path(__file__).parent.parent.parent.parent
+    central_temp = project_root / "temp"
+    central_temp.mkdir(exist_ok=True)
+    return central_temp
 
 def split_audio_by_duration_optimized(input_audio, temp_dir, max_duration_sec=600, 
                                     output_prefix="part_", logger=None):

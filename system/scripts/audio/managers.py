@@ -100,55 +100,6 @@ class ModelManager:
         
         return self.models[model_key]
     
-    def get_silero_vad_model(self):
-        """Получить Silero VAD модель с кэшированием"""
-        model_key = "silero_vad"
-        
-        if model_key not in self.models:
-            try:
-                import silero_vad
-                self.models[model_key] = silero_vad.load_silero_vad()
-                # Загружаем модель на правильное устройство
-                if self.device.type == "cuda":
-                    self.models[model_key] = self.models[model_key].to(self.device)
-                else:
-                    # Для CPU убеждаемся, что модель на CPU
-                    self.models[model_key] = self.models[model_key].cpu()
-            except ImportError:
-                raise ImportError("silero-vad not installed")
-        else:
-            # Убеждаемся, что кэшированная модель на правильном устройстве
-            current_device = next(self.models[model_key].parameters()).device
-            if current_device != self.device:
-                self.models[model_key] = self.models[model_key].to(self.device)
-        
-        # Дополнительная проверка и исправление устройства всех компонентов модели
-        model = self.models[model_key]
-        try:
-            # Проверяем все параметры модели
-            for name, param in model.named_parameters():
-                if param.device != self.device:
-                    param.data = param.data.to(self.device)
-            
-            # Проверяем буферы модели
-            for name, buffer in model.named_buffers():
-                if buffer.device != self.device:
-                    buffer.data = buffer.data.to(self.device)
-            
-            # Проверяем модули модели
-            for name, module in model.named_modules():
-                if hasattr(module, 'weight') and module.weight is not None:
-                    if module.weight.device != self.device:
-                        module.weight.data = module.weight.data.to(self.device)
-                if hasattr(module, 'bias') and module.bias is not None:
-                    if module.bias.device != self.device:
-                        module.bias.data = module.bias.data.to(self.device)
-        except Exception as e:
-            # Если не удалось проверить устройство, просто возвращаем модель
-            pass
-        
-        return self.models[model_key]
-    
     def get_diarization_pipeline(self, token):
         """Получить PyAnnote диаризационный пайплайн с кэшированием"""
         model_key = "pyannote_diarization"
