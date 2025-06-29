@@ -61,15 +61,16 @@ def split_audio_by_duration_optimized(input_audio, temp_dir, max_duration_sec=60
     
     return parts
 
-def analyze_boundary_segment(input_audio, segment_start, segment_end, segment_id, whisper_model, logger=None):
+def analyze_boundary_segment(input_audio, segment_start, segment_end, segment_id, whisper_model, temp_dir, logger=None):
     """
     Анализирует сегмент для поиска границ предложений (выполняется в отдельном потоке)
     """
     try:
-        # Создаем уникальную временную папку для каждого потока
-        temp_dir = Path(input_audio).parent / f"temp_analysis_{segment_id}"
-        temp_dir.mkdir(exist_ok=True)
-        temp_file = temp_dir / f"temp_analysis_{segment_id}.wav"
+        # Создаем уникальную временную папку для каждого потока ВНУТРИ переданной temp_dir
+        temp_dir = Path(temp_dir)
+        segment_temp_dir = temp_dir / f"temp_analysis_{segment_id}"
+        segment_temp_dir.mkdir(exist_ok=True)
+        temp_file = segment_temp_dir / f"temp_analysis_{segment_id}.wav"
         
         # Извлекаем сегмент для анализа
         command = [
@@ -114,7 +115,7 @@ def analyze_boundary_segment(input_audio, segment_start, segment_end, segment_id
         # Очищаем временную папку
         try:
             import shutil
-            shutil.rmtree(temp_dir)
+            shutil.rmtree(segment_temp_dir)
         except:
             pass
         
@@ -241,7 +242,7 @@ def split_audio_smart_multithreaded_optimized(input_audio, temp_dir, max_duratio
             # Запускаем анализ в отдельном потоке
             future = executor.submit(
                 analyze_boundary_segment,
-                input_audio, analysis_start, analysis_end, i, whisper_model, logger
+                input_audio, analysis_start, analysis_end, i, whisper_model, temp_dir, logger
             )
             futures.append((future, i))
         
@@ -353,13 +354,13 @@ def split_audio_at_word_boundary_optimized(input_audio, temp_dir, max_duration_s
         analysis_start = max(0, start_time - 30)
         analysis_end = min(total_seconds, end_time + 30)
         
-        # Создаем временный файл для анализа
+        # Создаем временный файл для анализа ВНУТРИ temp_dir
         temp_file = Path(temp_dir) / f"temp_analysis_{i}.wav"
         command = [
             "ffmpeg", "-i", input_audio,
             "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
             "-ss", str(analysis_start), "-t", str(analysis_end - analysis_start),
-            str(temp_file)
+            str(temp_file), "-y"
         ]
         subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
@@ -379,7 +380,10 @@ def split_audio_at_word_boundary_optimized(input_audio, temp_dir, max_duration_s
                 best_boundary = segment_end
         
         # Удаляем временный файл
-        temp_file.unlink()
+        try:
+            temp_file.unlink()
+        except:
+            pass
         
         # Вычисляем реальное время разбивки
         actual_split_time = analysis_start + best_boundary
@@ -397,7 +401,7 @@ def split_audio_at_word_boundary_optimized(input_audio, temp_dir, max_duration_s
                 "ffmpeg", "-i", input_audio,
                 "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
                 "-ss", str(actual_split_time), "-t", str(part_duration),
-                str(output_file)
+                str(output_file), "-y"
             ]
             subprocess.run(command, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
