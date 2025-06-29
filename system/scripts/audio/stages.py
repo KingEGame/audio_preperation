@@ -428,23 +428,28 @@ def create_speaker_segments_with_metadata(input_audio, diarization_result, outpu
         speaker_file = speaker_dir / f"speaker_{speaker}_{Path(input_audio).stem}.wav"
         segments_list_file = speaker_dir / f"segments_{speaker}_{Path(input_audio).stem}.txt"
         
+        # Метод 1: Создаем файл списка сегментов для FFmpeg concat
         with open(segments_list_file, 'w', encoding='utf-8') as f:
             for segment in segments:
-                f.write(f"file '{input_audio}'\n")
+                # Используем абсолютный путь для надежности
+                abs_input_path = str(Path(input_audio).absolute())
+                f.write(f"file '{abs_input_path}'\n")
                 f.write(f"inpoint {segment['start']:.3f}\n")
                 f.write(f"outpoint {segment['end']:.3f}\n")
         
-        command = [
-            "ffmpeg", "-f", "concat", "-safe", "0",
-            "-i", str(segments_list_file),
-            "-c", "copy", str(speaker_file),
-            "-y"
-        ]
-        
+        # Метод 1: Пробуем FFmpeg concat с copy
+        success = False
         try:
-            subprocess.run(command, capture_output=True, text=True, check=True)
+            command = [
+                "ffmpeg", "-f", "concat", "-safe", "0",
+                "-i", str(segments_list_file),
+                "-c", "copy", str(speaker_file),
+                "-y"
+            ]
             
-            if speaker_file.exists():
+            result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+            
+            if result.returncode == 0 and speaker_file.exists():
                 from .utils import get_mp3_duration
                 duration_str = get_mp3_duration(str(speaker_file))
                 time_parts = duration_str.split(":")
@@ -453,12 +458,118 @@ def create_speaker_segments_with_metadata(input_audio, diarization_result, outpu
                 logger.info(f"Created speaker file {speaker}: {speaker_file.name} "
                            f"({total_duration}s, {len(segments)} segments)")
                 speaker_files.append(str(speaker_file))
+                success = True
                 
         except subprocess.CalledProcessError as e:
-            logger.error(f"Error creating speaker file {speaker}: {e}")
-        finally:
-            if segments_list_file.exists():
-                segments_list_file.unlink()
+            logger.warning(f"FFmpeg concat with copy failed for {speaker}: {e}")
+            if e.stderr:
+                logger.debug(f"FFmpeg stderr: {e.stderr}")
+        except subprocess.TimeoutExpired:
+            logger.warning(f"FFmpeg concat timeout for {speaker}")
+        except Exception as e:
+            logger.warning(f"FFmpeg concat error for {speaker}: {e}")
+        
+        # Метод 2: Если concat не сработал, пробуем с перекодированием
+        if not success:
+            try:
+                command = [
+                    "ffmpeg", "-f", "concat", "-safe", "0",
+                    "-i", str(segments_list_file),
+                    "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
+                    str(speaker_file), "-y"
+                ]
+                
+                result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+                
+                if result.returncode == 0 and speaker_file.exists():
+                    from .utils import get_mp3_duration
+                    duration_str = get_mp3_duration(str(speaker_file))
+                    time_parts = duration_str.split(":")
+                    total_duration = int(time_parts[0]) * 3600 + int(time_parts[1]) * 60 + int(time_parts[2])
+                    
+                    logger.info(f"Created speaker file {speaker} (recode): {speaker_file.name} "
+                               f"({total_duration}s, {len(segments)} segments)")
+                    speaker_files.append(str(speaker_file))
+                    success = True
+                    
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"FFmpeg concat with recode failed for {speaker}: {e}")
+                if e.stderr:
+                    logger.debug(f"FFmpeg stderr: {e.stderr}")
+            except subprocess.TimeoutExpired:
+                logger.warning(f"FFmpeg concat recode timeout for {speaker}")
+            except Exception as e:
+                logger.warning(f"FFmpeg concat recode error for {speaker}: {e}")
+        
+        # Метод 3: Если concat не работает, создаем отдельные файлы и объединяем
+        if not success and len(segments) > 0:
+            try:
+                logger.info(f"Trying alternative method for {speaker}: creating individual segments")
+                
+                # Создаем временную папку для сегментов
+                temp_segments_dir = speaker_dir / "temp_segments"
+                temp_segments_dir.mkdir(exist_ok=True)
+                
+                segment_files = []
+                
+                # Создаем отдельные файлы для каждого сегмента
+                for i, segment in enumerate(segments):
+                    segment_file = temp_segments_dir / f"segment_{i:04d}.wav"
+                    
+                    command = [
+                        "ffmpeg", "-i", str(input_audio),
+                        "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
+                        "-ss", str(segment['start']), "-t", str(segment['duration']),
+                        str(segment_file), "-y"
+                    ]
+                    
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=60)
+                    
+                    if result.returncode == 0 and segment_file.exists():
+                        segment_files.append(str(segment_file))
+                
+                # Объединяем сегменты
+                if segment_files:
+                    concat_list_file = temp_segments_dir / "concat_list.txt"
+                    with open(concat_list_file, 'w', encoding='utf-8') as f:
+                        for segment_file in segment_files:
+                            f.write(f"file '{segment_file}'\n")
+                    
+                    command = [
+                        "ffmpeg", "-f", "concat", "-safe", "0",
+                        "-i", str(concat_list_file),
+                        "-c", "copy", str(speaker_file),
+                        "-y"
+                    ]
+                    
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+                    
+                    if result.returncode == 0 and speaker_file.exists():
+                        from .utils import get_mp3_duration
+                        duration_str = get_mp3_duration(str(speaker_file))
+                        time_parts = duration_str.split(":")
+                        total_duration = int(time_parts[0]) * 3600 + int(time_parts[1]) * 60 + int(time_parts[2])
+                        
+                        logger.info(f"Created speaker file {speaker} (alternative): {speaker_file.name} "
+                                   f"({total_duration}s, {len(segments)} segments)")
+                        speaker_files.append(str(speaker_file))
+                        success = True
+                
+                # Очищаем временные файлы
+                import shutil
+                if temp_segments_dir.exists():
+                    shutil.rmtree(temp_segments_dir)
+                    
+            except Exception as e:
+                logger.error(f"Alternative method failed for {speaker}: {e}")
+        
+        # Если все методы не сработали
+        if not success:
+            logger.error(f"Failed to create speaker file {speaker} after trying all methods")
+        
+        # Очищаем временный файл списка
+        if segments_list_file.exists():
+            segments_list_file.unlink()
     
     logger.info(f"Created {len(speaker_files)} speaker files in {len(speaker_segments)} folders")
     return speaker_files
