@@ -40,9 +40,9 @@ call system\fixes\cleanup_temp_folders.bat
 
 rem ─── 3. Удаляем созданные batch-файлы ───────────────────────────────────────
 echo    %L_CYAN%3. Removing created batch files...%RESET%
-del start_processing.bat
-del activate_environment.bat
-del cleanup_temp.bat
+del ..\..\start_processing.bat
+del ..\..\activate_environment.bat
+del ..\..\cleanup_temp.bat
 
 rem ─── завершение ────────────────────────────────────────────────────────────
 echo(
