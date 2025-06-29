@@ -65,7 +65,7 @@ def main():
         steps = ['split', 'denoise', 'vad', 'diar']
         split_method = 'smart_multithreaded'  # New smart splitter
         use_gpu = True
-        force_cpu_vad = False
+        force_cpu_vad = True  # Force CPU for VAD stability
         parallel = True
         workers = None  # Auto-determined
     else:
@@ -170,7 +170,7 @@ def main():
                 if args.mode == 'multithreaded':
                     split_method = 'smart_multithreaded'
                     use_gpu = True
-                    force_cpu_vad = False
+                    force_cpu_vad = True
                     parallel = True
                     workers = get_optimal_workers()
                 else:

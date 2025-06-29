@@ -204,7 +204,59 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
         
     except Exception as e:
         logger.error(f"Error during silence removal: {e}")
-        return input_wav
+        
+        # Если ошибка на GPU, пробуем на CPU
+        if device.type == "cuda":
+            logger.info("VAD failed on GPU, retrying with CPU...")
+            try:
+                # Переключаемся на CPU
+                device = torch.device("cpu")
+                logger.info(f"Retrying with device: {device}")
+                
+                # Загружаем аудио заново на CPU
+                wav, sr = torchaudio.load(input_wav)
+                wav = wav.to(device)
+                
+                # Ресэмплируем если нужно
+                if sr != sample_rate:
+                    wav = torchaudio.functional.resample(wav, sr, sample_rate)
+                    sr = sample_rate
+                
+                # Загружаем модель на CPU
+                model = silero_vad.load_silero_vad()
+                model = model.to(device)
+                
+                # Анализ речи на CPU
+                speech_timestamps = silero_vad.get_speech_timestamps(
+                    wav[0],
+                    model=model,
+                    sampling_rate=sr,
+                    min_speech_duration_ms=min_speech_duration_ms,
+                    min_silence_duration_ms=min_silence_duration_ms,
+                    window_size_samples=window_size_samples
+                )
+                
+                if not speech_timestamps:
+                    logger.warning("Speech not found on CPU, returning original file.")
+                    return input_wav
+                
+                # Создаем аудио без тишины
+                speech_audio = torch.cat([wav[:, ts['start']:ts['end']] for ts in speech_timestamps], dim=1)
+                torchaudio.save(output_wav, speech_audio.cpu(), sr)
+                logger.info(f"File without silence saved with CPU: {output_wav}")
+                
+                # Очищаем
+                del wav, speech_audio
+                if gpu_manager:
+                    gpu_manager.cleanup()
+                
+                return output_wav
+                
+            except Exception as e2:
+                logger.error(f"CPU VAD also failed: {e2}")
+                return input_wav
+        else:
+            return input_wav
 
 def diarize_with_pyannote_optimized(input_audio, output_dir, min_segment_duration=0.1, 
                                    chunk_info=None, model_manager=None, gpu_manager=None, logger=None):

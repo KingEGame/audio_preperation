@@ -9,7 +9,15 @@ set "L_CYAN=%ESC%[96m"
 set "L_BLUE=%ESC%[94m"
 set "RESET=%ESC%[0m"
 
-call system\instructions\activate_environment.bat
+set CONDA_ROOT_PREFIX=%cd%\audio_environment\conda
+set INSTALL_ENV_DIR=%cd%\audio_environment\env
+echo    %L_CYAN%Activating environment...%RESET%
+call "%CONDA_ROOT_PREFIX%\condabin\conda.bat" activate "%INSTALL_ENV_DIR%" || ( 
+    echo. 
+    echo %L_RED%Miniconda hook not found%RESET%
+    echo %L_YELLOW%Please check conda installation%RESET%
+    exit /b 1 
+)
 
 echo.
 echo    %L_BLUE%SELECTIVE FIXES%RESET%
