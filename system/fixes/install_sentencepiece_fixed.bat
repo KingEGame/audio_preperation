@@ -2,9 +2,6 @@
 cd /D "%~dp0"
 setlocal enabledelayedexpansion
 
-:: Generate the ESC character
-for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
-
 :: Colors
 set "L_RED=%ESC%[91m"
 set "L_GREEN=%ESC%[92m"

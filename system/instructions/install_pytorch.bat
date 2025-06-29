@@ -17,7 +17,7 @@ set "PYTHON_EXE=%cd%\audio_environment\env\python.exe"
 set "PIP_EXE=%cd%\audio_environment\env\Scripts\pip.exe"
 if not exist "!PYTHON_EXE!" (
     echo %L_RED%Environment not found! Run install_environment.bat first.%RESET%
-    pause
+    echo %L_YELLOW%Please ensure the Python environment is properly created%RESET%
     exit /b 1
 )
 
