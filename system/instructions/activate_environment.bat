@@ -16,9 +16,9 @@ set "RESET=%ESC%[0m"
 @rem deactivate existing conda envs as needed to avoid conflicts
 (call conda deactivate && call conda deactivate && call conda deactivate) 2>nul
 
-@rem config
-set CONDA_ROOT_PREFIX=%cd%\audio_environment\conda
-set INSTALL_ENV_DIR=%cd%\audio_environment\env
+@rem config - fix paths to point to project root
+set CONDA_ROOT_PREFIX=%cd%\..\..\audio_environment\conda
+set INSTALL_ENV_DIR=%cd%\..\..\audio_environment\env
 
 @rem figure out whether git and conda need to be installed
 @rem check if conda environment was actually created
@@ -41,3 +41,5 @@ if "%ERRORLEVEL%" NEQ "0" (
 echo %L_GREEN%✅ Portable environment activated successfully!%RESET%
 echo %L_CYAN%🐍 Python: !INSTALL_ENV_DIR!\python.exe%RESET%
 echo %L_CYAN%📦 Conda: !CONDA_ROOT_PREFIX!\_conda.exe%RESET%
+
+:end
