@@ -326,7 +326,7 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
         logger.info(f"Stage 2-4: Processing {len(parts)} chunks with multithreading")
         
         # Используем ThreadPoolExecutor для I/O операций
-        max_workers = min(4, len(parts))  # Максимум 4 потока
+        max_workers = min(2, len(parts))  # Максимум 2 потока для стабильности
         speaker_folders = []
         
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
@@ -391,38 +391,40 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
 def process_multiple_files_parallel_optimized(files, output_dir, steps, chunk_duration,
                                             min_speaker_segment, split_method, use_gpu, force_cpu_vad, logger):
     """
-    Параллельная обработка нескольких файлов с многопоточностью
+    Многопоточная обработка нескольких файлов с организацией по спикерам
     """
-    logger.info(f"Starting parallel processing of {len(files)} files")
+    logger.info("Starting parallel processing of {} files".format(len(files)))
     
     # Инициализируем менеджеры
-    from .managers import GPUMemoryManager, ModelManager
-    gpu_manager = GPUMemoryManager()
+    gpu_manager = GPUMemoryManager(GPU_MEMORY_LIMIT)
     model_manager = ModelManager(gpu_manager)
     
     try:
-        # Используем ThreadPoolExecutor для совместимости с менеджерами
-        max_workers = min(4, len(files))  # Максимум 4 потока
+        # Уменьшаем количество параллельных процессов для стабильности
+        max_workers = min(2, len(files))  # Максимум 2 файла одновременно
+        logger.info(f"Using {max_workers} parallel workers for file processing")
+        
         all_organized_speakers = {}
         
+        # Используем ThreadPoolExecutor для I/O операций
         with ThreadPoolExecutor(max_workers=max_workers) as executor:
             # Создаем задачи для обработки файлов
             future_to_file = {}
-            for file_path in files:
+            for audio_file in files:
                 future = executor.submit(
                     process_file_multithreaded_optimized,
-                    file_path, output_dir, steps, chunk_duration,
-                    min_speaker_segment, split_method, use_gpu, force_cpu_vad, logger,
-                    model_manager, gpu_manager
+                    audio_file, output_dir, steps, chunk_duration,
+                    min_speaker_segment, split_method, use_gpu, force_cpu_vad,
+                    logger, model_manager, gpu_manager
                 )
-                future_to_file[future] = file_path
+                future_to_file[future] = audio_file
             
             # Обрабатываем результаты
             for future in as_completed(future_to_file):
-                file_path = future_to_file[future]
+                audio_file = future_to_file[future]
                 try:
                     organized_speakers = future.result()
-                    logger.info(f"Completed processing file: {Path(file_path).name}")
+                    logger.info(f"Completed processing file: {audio_file.name}")
                     
                     # Объединяем результаты
                     for speaker_name, speaker_data in organized_speakers.items():
@@ -434,9 +436,8 @@ def process_multiple_files_parallel_optimized(files, output_dir, steps, chunk_du
                             all_organized_speakers[speaker_name]['metadata'].extend(speaker_data['metadata'])
                             
                 except Exception as e:
-                    logger.error(f"Error processing file {Path(file_path).name}: {e}")
+                    logger.error(f"Error processing file {audio_file.name}: {e}")
         
-        logger.info(f"Completed parallel processing. Total speakers: {len(all_organized_speakers)}")
         return all_organized_speakers
         
     finally:

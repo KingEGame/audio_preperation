@@ -13,10 +13,10 @@ import torch
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from .utils import get_mp3_duration
 
-# Глобальная блокировка для координации между потоками
-SPLIT_COORDINATION_LOCK = threading.Lock()
-# Словарь для хранения результатов анализа границ
+# Глобальные переменные для координации между потоками
 BOUNDARY_RESULTS = {}
+SPLIT_COORDINATION_LOCK = threading.Lock()
+WHISPER_MODEL_LOCK = threading.Lock()  # Блокировка для доступа к Whisper модели
 
 def split_audio_by_duration_optimized(input_audio, temp_dir, max_duration_sec=600, 
                                     output_prefix="part_", logger=None):
@@ -66,8 +66,8 @@ def analyze_boundary_segment(input_audio, segment_start, segment_end, segment_id
     Анализирует сегмент для поиска границ предложений (выполняется в отдельном потоке)
     """
     try:
-        # Создаем временный файл для анализа
-        temp_dir = Path(input_audio).parent / "temp_analysis"
+        # Создаем уникальную временную папку для каждого потока
+        temp_dir = Path(input_audio).parent / f"temp_analysis_{segment_id}"
         temp_dir.mkdir(exist_ok=True)
         temp_file = temp_dir / f"temp_analysis_{segment_id}.wav"
         
@@ -84,23 +84,39 @@ def analyze_boundary_segment(input_audio, segment_start, segment_end, segment_id
             logger.warning(f"Failed to create temp file for segment {segment_id}")
             return None
         
-        # Транскрибируем с помощью Whisper
-        result = whisper_model.transcribe(str(temp_file), language="ru")
-        
-        # Ищем лучшие границы предложений
+        # Транскрибируем с помощью Whisper с блокировкой
         boundaries = []
-        for segment in result["segments"]:
-            # Конвертируем время относительно исходного файла
-            absolute_start = segment_start + segment["start"]
-            absolute_end = segment_start + segment["end"]
-            boundaries.append({
-                'start': absolute_start,
-                'end': absolute_end,
-                'text': segment["text"].strip()
-            })
+        try:
+            with WHISPER_MODEL_LOCK:  # Блокируем доступ к модели
+                result = whisper_model.transcribe(str(temp_file), language="ru")
+                
+                # Ищем лучшие границы предложений
+                for segment in result["segments"]:
+                    # Конвертируем время относительно исходного файла
+                    absolute_start = segment_start + segment["start"]
+                    absolute_end = segment_start + segment["end"]
+                    boundaries.append({
+                        'start': absolute_start,
+                        'end': absolute_end,
+                        'text': segment["text"].strip()
+                    })
+        except Exception as e:
+            logger.error(f"Whisper transcription error for segment {segment_id}: {e}")
+            # Возвращаем пустой список границ в случае ошибки
+            boundaries = []
         
         # Удаляем временный файл
-        temp_file.unlink()
+        try:
+            temp_file.unlink()
+        except:
+            pass
+        
+        # Очищаем временную папку
+        try:
+            import shutil
+            shutil.rmtree(temp_dir)
+        except:
+            pass
         
         # Сохраняем результат в глобальный словарь
         with SPLIT_COORDINATION_LOCK:
@@ -115,6 +131,13 @@ def analyze_boundary_segment(input_audio, segment_start, segment_end, segment_id
         
     except Exception as e:
         logger.error(f"Error analyzing segment {segment_id}: {e}")
+        # Сохраняем пустой результат в случае ошибки
+        with SPLIT_COORDINATION_LOCK:
+            BOUNDARY_RESULTS[segment_id] = {
+                'boundaries': [],
+                'segment_start': segment_start,
+                'segment_end': segment_end
+            }
         return None
 
 def find_best_split_point(boundaries, target_time, search_window=30):
@@ -183,10 +206,11 @@ def split_audio_smart_multithreaded_optimized(input_audio, temp_dir, max_duratio
     # Загружаем Whisper модель если не передана
     if whisper_model is None:
         logger.info("Loading Whisper model for smart splitting...")
-        whisper_model = whisper.load_model("base")
-        if torch.cuda.is_available():
-            whisper_model = whisper_model.to("cuda")
-            logger.info("✓ Whisper model moved to GPU")
+        with WHISPER_MODEL_LOCK:
+            whisper_model = whisper.load_model("base")
+            if torch.cuda.is_available():
+                whisper_model = whisper_model.to("cuda")
+                logger.info("✓ Whisper model moved to GPU")
     
     # Вычисляем количество частей
     num_parts = math.ceil(total_seconds / max_duration_sec)
@@ -199,7 +223,10 @@ def split_audio_smart_multithreaded_optimized(input_audio, temp_dir, max_duratio
     # Этап 1: Многопоточный анализ границ
     logger.info("Stage 1: Analyzing sentence boundaries in parallel...")
     
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
+    # Уменьшаем количество потоков для стабильности
+    safe_max_workers = min(max_workers, 2)  # Максимум 2 потока для стабильности
+    
+    with ThreadPoolExecutor(max_workers=safe_max_workers) as executor:
         futures = []
         
         for i in range(num_parts):
@@ -224,6 +251,13 @@ def split_audio_smart_multithreaded_optimized(input_audio, temp_dir, max_duratio
                 future.result(timeout=300)  # 5 минут таймаут на сегмент
             except Exception as e:
                 logger.error(f"Failed to analyze segment {segment_id}: {e}")
+                # Устанавливаем пустой результат для неудачного сегмента
+                with SPLIT_COORDINATION_LOCK:
+                    BOUNDARY_RESULTS[segment_id] = {
+                        'boundaries': [],
+                        'segment_start': segment_id * max_duration_sec,
+                        'segment_end': min((segment_id + 1) * max_duration_sec, total_seconds)
+                    }
     
     # Этап 2: Координация и создание финальных частей
     logger.info("Stage 2: Coordinating boundaries and creating final parts...")

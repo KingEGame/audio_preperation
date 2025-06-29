@@ -33,7 +33,7 @@ def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_
 
     try:
         # Проверяем память перед обработкой
-        if not gpu_manager.check_memory(required_gb=2.0):
+        if not gpu_manager.check_memory(required_gb=3.0):  # Увеличиваем требования к памяти
             logger.warning("Insufficient GPU memory for Demucs, using CPU")
             device = torch.device("cpu")
         else:
@@ -48,28 +48,71 @@ def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_
         logger.info(f"Reading audio file: {input_audio}")
         try:
             wav = AudioFile(input_audio).read(streams=0, samplerate=model.samplerate, channels=model.audio_channels)
-            wav = wav.unsqueeze(0).to(device)
+            wav = wav.unsqueeze(0)
         except Exception as e:
-            logger.error(f"Error reading audio file: {e}")
+            logger.error(f"Error reading audio file with AudioFile: {e}")
             # Пробуем альтернативный метод чтения
-            wav, sr = torchaudio.load(input_audio)
-            wav = torchaudio.functional.resample(wav, sr, model.samplerate)
-            wav = wav.unsqueeze(0).to(device)
+            try:
+                wav, sr = torchaudio.load(input_audio)
+                wav = torchaudio.functional.resample(wav, sr, model.samplerate)
+                wav = wav.unsqueeze(0)
+            except Exception as e2:
+                logger.error(f"Error reading audio file with torchaudio: {e2}")
+                return input_audio
+        
+        # Проверяем размер тензора
+        if wav.numel() == 0:
+            logger.error("Audio tensor is empty")
+            return input_audio
         
         logger.info(f"Audio file loaded. Tensor size: {wav.shape}")
-
-        # Применяем модель с управлением памятью
+        
+        # Перемещаем на устройство
+        wav = wav.to(device, dtype=torch.float32)  # Явно указываем тип данных
+        
+        # Применяем модель с улучшенным управлением памятью
         logger.info("Applying Demucs model...")
         
-        with torch.amp.autocast(device_type='cuda' if device.type == "cuda" else 'cpu'):
-            sources = apply_model(model, wav, device=device)
-        
-        # Сохраняем вокалы
-        torchaudio.save(str(vocals_file), sources[0, 0].cpu(), model.samplerate)
-        logger.info(f"Saved: {vocals_file}")
+        try:
+            # Отключаем autocast для стабильности
+            with torch.no_grad():  # Отключаем градиенты для экономии памяти
+                sources = apply_model(model, wav, device=device)
+            
+            # Проверяем результат
+            if sources is None or sources.numel() == 0:
+                logger.error("Demucs returned empty result")
+                return input_audio
+            
+            # Сохраняем вокалы
+            vocals = sources[0, 0].cpu()  # Берем вокалы и перемещаем на CPU
+            torchaudio.save(str(vocals_file), vocals, model.samplerate)
+            logger.info(f"Saved: {vocals_file}")
+
+        except Exception as e:
+            logger.error(f"Error during Demucs processing: {e}")
+            # Пробуем с CPU если GPU не работает
+            if device.type == "cuda":
+                logger.info("Retrying with CPU...")
+                try:
+                    wav_cpu = wav.cpu()
+                    model_cpu = model.cpu()
+                    with torch.no_grad():
+                        sources = apply_model(model_cpu, wav_cpu, device=torch.device("cpu"))
+                    vocals = sources[0, 0]
+                    torchaudio.save(str(vocals_file), vocals, model.samplerate)
+                    logger.info(f"Saved with CPU: {vocals_file}")
+                except Exception as e2:
+                    logger.error(f"CPU processing also failed: {e2}")
+                    return input_audio
+            else:
+                return input_audio
 
         # Очищаем тензоры
-        del wav, sources
+        del wav
+        if 'sources' in locals():
+            del sources
+        if 'vocals' in locals():
+            del vocals
         gpu_manager.cleanup()
         
         return str(vocals_file)
