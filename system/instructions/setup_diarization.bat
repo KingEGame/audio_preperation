@@ -93,4 +93,3 @@ python -c "import pyannote.audio; print('PyAnnote installed successfully')" || (
 )
 
 echo    %L_GREEN%Diarization setup completed!%RESET%
-pause 

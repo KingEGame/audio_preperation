@@ -101,4 +101,3 @@ if not "!CUDA_VERSION!"=="CPU" (
 ) else (
     echo    %L_CYAN%Installed CPU-only version%RESET%
 )
-pause 

@@ -84,4 +84,3 @@ echo    - %INSTALL_ENV_DIR% (python environment)
 echo.
 echo    %L_YELLOW%Next step: Run install_environment.bat to install packages%RESET%
 echo.
-pause 

@@ -79,4 +79,3 @@ if "%ERRORLEVEL%" EQU "0" (
 
 echo.
 echo %L_GREEN%Global FFmpeg installation completed!%RESET%
-pause 

@@ -188,55 +188,53 @@ echo echo. >> activate_environment.bat
 echo echo 🆕 New modular architecture with /audio package >> activate_environment.bat
 echo echo. >> activate_environment.bat
 echo. >> activate_environment.bat
-echo :: Check if environment exists >> activate_environment.bat
-echo if not exist "audio_environment" ^( >> activate_environment.bat
-echo     echo ❌ Environment not found >> activate_environment.bat
-echo     echo. >> activate_environment.bat
-echo     echo Run setup.bat and select option 1 to install the environment. >> activate_environment.bat
-echo     echo. >> activate_environment.bat
-echo     pause >> activate_environment.bat
-echo     exit /b 1 >> activate_environment.bat
-echo ^) >> activate_environment.bat
+echo :: Generate the ESC character >> activate_environment.bat
+echo for /F %%%%a in ^('echo prompt $E ^| cmd'^) do set "ESC=%%%%a" >> activate_environment.bat
 echo. >> activate_environment.bat
-echo :: Set environment variables for portable conda >> activate_environment.bat
-echo set INSTALL_DIR=%%cd%%\audio_environment >> activate_environment.bat
+echo :: Colors >> activate_environment.bat
+echo set "L_RED=%%ESC%%[91m" >> activate_environment.bat
+echo set "L_GREEN=%%ESC%%[92m" >> activate_environment.bat
+echo set "L_YELLOW=%%ESC%%[93m" >> activate_environment.bat
+echo set "L_CYAN=%%ESC%%[96m" >> activate_environment.bat
+echo set "L_BLUE=%%ESC%%[94m" >> activate_environment.bat
+echo set "RESET=%%ESC%%[0m" >> activate_environment.bat
+echo. >> activate_environment.bat
+echo :: Portable Conda Environment Activation >> activate_environment.bat
+echo. >> activate_environment.bat
+echo set INSTALL_DIR=%%cd%%\..\audio_environment >> activate_environment.bat
 echo set CONDA_ROOT_PREFIX=%%cd%%\audio_environment\conda >> activate_environment.bat
 echo set INSTALL_ENV_DIR=%%cd%%\audio_environment\env >> activate_environment.bat
-echo. >> activate_environment.bat
 echo :: Check if portable conda exists >> activate_environment.bat
 echo if not exist "^!CONDA_ROOT_PREFIX^!\_conda.exe" ^( >> activate_environment.bat
-echo     echo ❌ Portable Conda not found^! Run system\instructions\install_portable_conda.bat first. >> activate_environment.bat
-echo     pause >> activate_environment.bat
+echo     echo %%L_RED%%Portable Conda not found^! Run system\instructions\install_portable_conda.bat first.%%RESET%% >> activate_environment.bat
 echo     exit /b 1 >> activate_environment.bat
 echo ^) >> activate_environment.bat
 echo. >> activate_environment.bat
 echo :: Check if environment exists >> activate_environment.bat
 echo if not exist "^!INSTALL_ENV_DIR^!\python.exe" ^( >> activate_environment.bat
-echo     echo ❌ Environment not found^! Run system\instructions\install_portable_conda.bat first. >> activate_environment.bat
-echo     pause >> activate_environment.bat
+echo     echo %%L_RED%%Environment not found^! Run system\instructions\install_portable_conda.bat first.%%RESET%% >> activate_environment.bat
 echo     exit /b 1 >> activate_environment.bat
 echo ^) >> activate_environment.bat
 echo. >> activate_environment.bat
 echo :: Set environment variables >> activate_environment.bat
+echo. >> activate_environment.bat
 echo set CONDA_DEFAULT_ENV=audio_env >> activate_environment.bat
 echo set CONDA_PROMPT_MODIFIER=^(audio_env^) >> activate_environment.bat
 echo. >> activate_environment.bat
 echo :: Activate the environment using portable conda >> activate_environment.bat
-echo echo    Activating environment... >> activate_environment.bat
-echo call "%%CONDA_ROOT_PREFIX%%\condabin\conda.bat" activate "%%INSTALL_ENV_DIR%%" ^|^| ^( >> activate_environment.bat
-echo     echo ❌ Failed to activate environment >> activate_environment.bat
-echo     pause >> activate_environment.bat
-echo     exit /b 1 >> activate_environment.bat
-echo ^) >> activate_environment.bat
+echo @rem check if conda environment was actually created >> activate_environment.bat
+echo if not exist "%%INSTALL_ENV_DIR%%\python.exe" ^( echo. ^&^& echo Conda environment is empty. ^&^& goto end ^) >> activate_environment.bat
+echo. >> activate_environment.bat
+echo @rem activate installer env >> activate_environment.bat
+echo call "%%CONDA_ROOT_PREFIX%%\condabin\conda.bat" activate "%%INSTALL_ENV_DIR%%" ^|^| ^( echo. ^&^& echo Miniconda hook not found. ^&^& goto end ^) >> activate_environment.bat
 echo. >> activate_environment.bat
 echo :: Verify we're using the right Python >> activate_environment.bat
 echo python -c "import sys; print^('Python path:', sys.executable^)" ^| findstr "audio_environment" ^>nul >> activate_environment.bat
 echo if "%%ERRORLEVEL%%" NEQ "0" ^( >> activate_environment.bat
-echo     echo ❌ ERROR: Still using wrong Python^! >> activate_environment.bat
+echo     echo %%L_RED%%ERROR: Still using wrong Python^!%%RESET%% >> activate_environment.bat
 echo     echo Expected: ^!INSTALL_ENV_DIR^!\python.exe >> activate_environment.bat
 echo     echo Actual:  >> activate_environment.bat
 echo     python -c "import sys; print^(sys.executable^)" >> activate_environment.bat
-echo     pause >> activate_environment.bat
 echo     exit /b 1 >> activate_environment.bat
 echo ^) >> activate_environment.bat
 echo. >> activate_environment.bat

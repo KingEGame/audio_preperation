@@ -41,4 +41,3 @@ if exist "system\tests\test_gpu.py" (
 )
 
 echo.
-pause 

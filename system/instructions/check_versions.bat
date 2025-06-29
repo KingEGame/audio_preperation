@@ -24,10 +24,7 @@ if not exist "!PYTHON_EXE!" (
 )
 
 echo    %L_CYAN%Activating environment...%RESET%
-call system\instructions\activate_environment.bat || (
-    pause
-    exit /b 1
-)
+call system\instructions\activate_environment.bat 
 
 echo    %L_GREEN%Checking versions:%RESET%
 python -c "import numpy; print('NumPy:', numpy.__version__)"
@@ -39,6 +36,6 @@ python -c "import silero_vad; print('Silero VAD: working')"
 python -c "import librosa; print('Librosa:', librosa.__version__)"
 python -c "import soundfile; print('SoundFile:', soundfile.__version__)"
 python -c "import pyannote.audio; print('PyAnnote: working')" 2>nul || echo %L_YELLOW%PyAnnote: not installed%RESET%
-
+call system\instructions\test_gpu.bat
 echo    %L_GREEN%Version check completed!%RESET%
 pause 
