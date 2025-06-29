@@ -5,7 +5,7 @@ Audio Processing Package
 
 from .managers import GPUMemoryManager, ModelManager
 from .processors import (
-    process_audio_file_optimized, parallel_audio_processing_optimized,
+    process_audio_file_optimized,
     process_multiple_files_parallel_optimized
 )
 from .stages import (
@@ -19,7 +19,8 @@ from .splitters import (
 from .utils import (
     get_mp3_duration,
     setup_logging,
-    copy_results_to_output_optimized
+    copy_results_to_output_optimized,
+    parallel_audio_processing_optimized
 )
 from .config import (
     get_optimal_workers, setup_gpu_optimization,
