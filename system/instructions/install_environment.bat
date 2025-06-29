@@ -68,10 +68,12 @@ echo    %L_CYAN%Installing PyTorch...%RESET%
 call system\instructions\install_pytorch.bat
 
 echo    %L_CYAN%Installing diarization...%RESET%
-call system\instructions\setup_diarization.bat || (
-    echo %L_YELLOW%Warning: Diarization setup failed%RESET%
-    pause
-    exit /b 1
+echo    %L_YELLOW%Installing build tools...%RESET%
+conda install -c conda-forge wheel setuptools cmake -y || (
+    echo %L_YELLOW%Warning: Failed to install cmake via conda, trying pip...%RESET%
+    pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+        echo %L_YELLOW%Warning: Failed to install cmake%RESET%
+    )
 )
 
 echo    %L_CYAN%Installing sentencepiece...%RESET%
@@ -79,18 +81,17 @@ pip install sentencepiece || (
     echo %L_YELLOW%Warning: sentencepiece failed%RESET%
     call system\fixes\install_sentencepiece_fixed.bat
 )
-
+echo    %L_CYAN%Installing speechbrain...%RESET%
+pip install speechbrain>=1.0.0,<2.0.0 || (
+    echo %L_RED%Failed to install speechbrain%RESET%
+    call system\fixes\install_speechbrain_fixed.bat
+)  
 echo    %L_CYAN%Installing remaining dependencies...%RESET%
 pip install -r system\requirements\requirements.txt  || (
     echo %L_RED%Failed to install dependencies%RESET%
     pause
 )
 
-echo    %L_CYAN%Installing speechbrain...%RESET%
-pip install speechbrain>=1.0.0,<2.0.0 || (
-    echo %L_RED%Failed to install speechbrain%RESET%
-    call system\fixes\install_speechbrain_fixed.bat
-)   
 
 echo    %L_CYAN%Installing FFmpeg...%RESET%
 call system\instructions\download_ffmpeg.bat

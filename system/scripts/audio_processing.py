@@ -51,20 +51,33 @@ def main():
     parser = argparse.ArgumentParser(description="Optimized Audio Processing Pipeline: splitting, denoising, silence removal, diarization with speaker separation.")
     parser.add_argument('--input', '-i', help='Path to audio file (mp3/wav) or folder with files')
     parser.add_argument('--output', '-o', help='Folder for saving results')
-    parser.add_argument('--chunk_duration', type=int, default=600, help='Maximum chunk duration (seconds), default 600 (10 minutes)')
-    parser.add_argument('--min_speaker_segment', type=float, default=0.1, help='Minimum speaker segment duration (seconds), default 0.1 (use 0 for no limit)')
-    parser.add_argument('--no_duration_limit', action='store_true', help='Disable minimum duration limit for speaker segments')
-    parser.add_argument('--steps', nargs='+', default=['split','denoise','vad', 'diar'],
-                        help='Processing stages: split, denoise, vad, diar')
-    parser.add_argument('--split_method', type=str, default='word_boundary', choices=['simple', 'word_boundary'],
-                        help='Splitting method: simple or word_boundary')
-    parser.add_argument('--use_gpu', action='store_true', help='Use GPU for VAD (default CPU for stability)')
-    parser.add_argument('--force_cpu_vad', action='store_true', help='Force CPU usage for VAD (for compatibility)')
+    parser.add_argument('--mode', type=str, default='multithreaded', choices=['single', 'multithreaded'],
+                        help='Processing mode: single (sequential) or multithreaded (parallel, recommended)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     parser.add_argument('--interactive', action='store_true', help='Interactive mode with parameter prompts')
-    parser.add_argument('--parallel', action='store_true', default=True, help='Use parallel processing (enabled by default)')
-    parser.add_argument('--workers', type=int, help='Number of worker processes (auto-determined)')
     args = parser.parse_args()
+
+    # Pre-configured optimal parameters
+    if args.mode == 'multithreaded':
+        # Multi-threaded mode - optimized for speed
+        chunk_duration = 600  # 10 minutes
+        min_speaker_segment = 0.1  # 0.1 seconds (no limit)
+        steps = ['split', 'denoise', 'vad', 'diar']
+        split_method = 'smart_multithreaded'  # New smart splitter
+        use_gpu = True
+        force_cpu_vad = False
+        parallel = True
+        workers = None  # Auto-determined
+    else:
+        # Single-threaded mode - optimized for stability
+        chunk_duration = 600  # 10 minutes
+        min_speaker_segment = 0.1  # 0.1 seconds (no limit)
+        steps = ['split', 'denoise', 'vad', 'diar']
+        split_method = 'word_boundary'  # More stable for single-threaded
+        use_gpu = True
+        force_cpu_vad = True  # Force CPU for stability
+        parallel = False
+        workers = 1
 
     # Setup logging
     log_level = logging.DEBUG if args.verbose else logging.INFO
@@ -81,31 +94,38 @@ def main():
     gpu_available = setup_gpu_optimization()
     if gpu_available:
         print("✓ GPU optimization applied")
-        args.use_gpu = True  # Automatically enable GPU
     else:
         print("⚠ GPU not available, using CPU")
+        use_gpu = False
+        force_cpu_vad = True
     
-    # VAD GPU usage logic
-    if args.force_cpu_vad:
-        print("⚠ VAD forced to use CPU for compatibility")
-        args.use_gpu = False
-    elif gpu_available:
-        print("✓ VAD will attempt GPU usage with CPU fallback")
+    # Determine optimal number of processes for multithreaded mode
+    if args.mode == 'multithreaded':
+        optimal_workers = get_optimal_workers()
+        if workers is None:
+            workers = optimal_workers
+        else:
+            workers = min(workers, optimal_workers)
+        print(f"✓ Multi-threaded mode: {workers} parallel processes")
     else:
-        print("⚠ VAD using CPU (GPU not available)")
+        workers = 1
+        print("✓ Single-threaded mode: sequential processing")
     
-    # Determine optimal number of processes
-    optimal_workers = get_optimal_workers()
-    if args.workers:
-        optimal_workers = min(args.workers, optimal_workers)
-    
-    print(f"✓ Optimal number of processes: {optimal_workers}")
-    print(f"✓ Parallel parts processing: {'Enabled' if args.parallel else 'Disabled'}")
+    # Show mode information
+    print(f"✓ Processing mode: {args.mode}")
+    if args.mode == 'multithreaded':
+        print(f"  - Smart multithreaded splitting with GPU acceleration")
+        print(f"  - Parallel processing for maximum speed")
+        print(f"  - GPU VAD enabled")
+    else:
+        print(f"  - Word boundary splitting for stability")
+        print(f"  - Sequential processing for reliability")
+        print(f"  - CPU VAD for compatibility")
     
     # Interactive mode or get parameters
     if args.interactive or not args.input or not args.output:
         print("\n" + "="*60)
-        print("AUDIO PROCESSING PIPELINE (OPTIMIZED)")
+        print("AUDIO PROCESSING PIPELINE (SIMPLIFIED)")
         print("="*60)
         
         # Get input file/folder
@@ -126,71 +146,54 @@ def main():
             print("  - C:\\path\\to\\results")
             args.output = input("Output folder: ").strip().strip('"')
         
-        # Additional settings
-        print(f"\nCurrent settings:")
-        print(f"  - Chunk duration: {args.chunk_duration} sec")
-        print(f"  - Minimum speaker segment duration: {args.min_speaker_segment} sec")
-        print(f"  - No duration limit: {'Yes' if args.no_duration_limit else 'No'}")
-        print(f"  - Splitting method: {args.split_method}")
-        print(f"  - Stages: {', '.join(args.steps)}")
-        print(f"  - Parallel parts processing: {'Enabled' if args.parallel else 'Disabled'}")
-        print(f"  - Number of processes: {optimal_workers}")
-        print(f"  - GPU: {'Enabled' if gpu_available else 'Disabled'}")
+        # Show current settings
+        print(f"\nCurrent settings ({args.mode} mode):")
+        print(f"  - Chunk duration: {chunk_duration} sec (10 minutes)")
+        print(f"  - Minimum speaker segment: {min_speaker_segment} sec (no limit)")
+        print(f"  - Splitting method: {split_method}")
+        print(f"  - Processing stages: {', '.join(steps)}")
+        print(f"  - GPU acceleration: {'Yes' if use_gpu else 'No'}")
+        print(f"  - VAD device: {'CPU' if force_cpu_vad else 'GPU'}")
+        print(f"  - Parallel processing: {'Yes' if parallel else 'No'}")
+        print(f"  - Number of processes: {workers}")
         
-        change_settings = input("\nChange settings? (y/n, default n): ").strip().lower()
-        if change_settings in ['y', 'yes', 'da']:
-            # Chunk duration
-            new_duration = input(f"Chunk duration in seconds (default {args.chunk_duration}): ").strip()
-            if new_duration and new_duration.isdigit():
-                args.chunk_duration = int(new_duration)
-            
-            # Minimum speaker segment duration
-            new_min_segment = input(f"Minimum speaker segment duration in seconds (default {args.min_speaker_segment}, use 0 for no limit): ").strip()
-            if new_min_segment and new_min_segment.replace('.', '').isdigit():
-                args.min_speaker_segment = float(new_min_segment)
-            
-            # No duration limit
-            no_limit_choice = input("Disable minimum duration limit? (y/n, default n): ").strip().lower()
-            args.no_duration_limit = no_limit_choice in ['y', 'yes', 'da']
-            
-            # Splitting method
-            print("\nSplitting method:")
-            print("  simple - simple time-based splitting")
-            print("  word_boundary - splitting at word boundaries (recommended)")
-            new_method = input(f"Method (default {args.split_method}): ").strip()
-            if new_method in ['simple', 'word_boundary']:
-                args.split_method = new_method
-            
-            # Processing stages
-            print("\nProcessing stages:")
-            print("  split - split into chunks")
-            print("  denoise - noise removal (Demucs)")
-            print("  vad - silence removal (Silero VAD)")
-            print("  diar - speaker diarization (PyAnnote)")
-            new_steps = input(f"Stages separated by space (default {' '.join(args.steps)}): ").strip()
-            if new_steps:
-                args.steps = new_steps.split()
-            
-            # Parallel parts processing
-            parallel_choice = input("Use parallel parts processing? (y/n, default y): ").strip().lower()
-            args.parallel = parallel_choice not in ['n', 'no', 'net']
-            
-            # Number of processes
-            new_workers = input(f"Number of processes for parts (default {optimal_workers}): ").strip()
-            if new_workers and new_workers.isdigit():
-                optimal_workers = min(int(new_workers), optimal_workers)
+        # Ask to change mode
+        print(f"\nCurrent mode: {args.mode}")
+        print("  single - Sequential processing (stable, slower)")
+        print("  multithreaded - Parallel processing (fast, recommended)")
+        change_mode = input(f"Change mode? (y/n, default n): ").strip().lower()
+        if change_mode in ['y', 'yes', 'da']:
+            new_mode = input("Enter mode (single/multithreaded): ").strip().lower()
+            if new_mode in ['single', 'multithreaded']:
+                args.mode = new_mode
+                # Update parameters based on new mode
+                if args.mode == 'multithreaded':
+                    split_method = 'smart_multithreaded'
+                    use_gpu = True
+                    force_cpu_vad = False
+                    parallel = True
+                    workers = get_optimal_workers()
+                else:
+                    split_method = 'word_boundary'
+                    use_gpu = True
+                    force_cpu_vad = True
+                    parallel = False
+                    workers = 1
+                
+                print(f"\nUpdated settings ({args.mode} mode):")
+                print(f"  - Splitting method: {split_method}")
+                print(f"  - GPU acceleration: {'Yes' if use_gpu else 'No'}")
+                print(f"  - VAD device: {'CPU' if force_cpu_vad else 'GPU'}")
+                print(f"  - Parallel processing: {'Yes' if parallel else 'No'}")
+                print(f"  - Number of processes: {workers}")
         
         print(f"\nStarting processing with parameters:")
         print(f"  Input: {args.input}")
         print(f"  Output: {args.output}")
-        print(f"  Chunk duration: {args.chunk_duration} sec")
-        print(f"  Minimum speaker segment duration: {args.min_speaker_segment} sec")
-        print(f"  No duration limit: {'Yes' if args.no_duration_limit else 'No'}")
-        print(f"  Splitting method: {args.split_method}")
-        print(f"  Stages: {', '.join(args.steps)}")
-        print(f"  Parallel parts processing: {'Yes' if args.parallel else 'No'}")
-        print(f"  Number of processes: {optimal_workers}")
-        print(f"  GPU: {'Yes' if gpu_available else 'No'}")
+        print(f"  Mode: {args.mode}")
+        print(f"  Splitting: {split_method}")
+        print(f"  GPU: {'Yes' if use_gpu else 'No'}")
+        print(f"  Parallel: {'Yes' if parallel else 'No'}")
         
         confirm = input("\nContinue? (y/n, default y): ").strip().lower()
         if confirm in ['n', 'no', 'net']:
@@ -198,12 +201,10 @@ def main():
             return
 
     logger.info(f"Input parameters: {vars(args)}")
+    logger.info(f"Mode: {args.mode}, Split method: {split_method}, GPU: {use_gpu}, Parallel: {parallel}")
 
     input_path = Path(args.input)
     output_dir = Path(args.output)
-    chunk_duration = args.chunk_duration
-    steps = args.steps
-    split_method = args.split_method
 
     # Check input file/folder existence
     if not input_path.exists():
@@ -302,15 +303,14 @@ def main():
     # Start timing
     start_time = time.time()
     
-    if args.parallel and len(files) > 1:
-        # Новая многопоточная обработка с организацией по спикерам
-        print(f"\nStarting new multithreaded processing for {len(files)} files...")
-        logger.info("Using new multithreaded processing with speaker organization")
+    if parallel and len(files) > 1:
+        # Многопоточная обработка
+        print(f"\nStarting multithreaded processing for {len(files)} files...")
+        logger.info("Using multithreaded processing with speaker organization")
         
         organized_speakers = process_multiple_files_parallel_optimized(
             files, output_dir, steps, chunk_duration,
-            args.min_speaker_segment if not args.no_duration_limit else 0.0, 
-            split_method, args.use_gpu, args.force_cpu_vad, logger
+            min_speaker_segment, split_method, use_gpu, force_cpu_vad, logger
         )
         
         # Показываем результаты
@@ -322,9 +322,9 @@ def main():
             print(f"    Folder: {speaker_data['folder']}")
         
     else:
-        # Обработка одного файла с новой архитектурой
-        print(f"\nStarting single file processing...")
-        logger.info("Using single file processing with speaker organization")
+        # Однопоточная обработка
+        print(f"\nStarting single-threaded processing...")
+        logger.info("Using single-threaded processing with speaker organization")
         
         # Инициализируем менеджеры
         gpu_manager = GPUMemoryManager(GPU_MEMORY_LIMIT)
@@ -346,8 +346,7 @@ def main():
                     from audio.processors import process_file_multithreaded_optimized
                     organized_speakers = process_file_multithreaded_optimized(
                         audio, output_dir, steps, chunk_duration,
-                        args.min_speaker_segment if not args.no_duration_limit else 0.0, 
-                        split_method, args.use_gpu, args.force_cpu_vad,
+                        min_speaker_segment, split_method, use_gpu, force_cpu_vad,
                         logger, model_manager, gpu_manager
                     )
                     
@@ -363,7 +362,7 @@ def main():
                     pbar_files.update(1)
             
             # Показываем результаты
-            print(f"\nSingle file processing completed!")
+            print(f"\nSingle-threaded processing completed!")
             print(f"Total speakers found: {len(all_organized_speakers)}")
             
             for speaker_name, speaker_data in all_organized_speakers.items():
@@ -419,13 +418,13 @@ def main():
     print(f"Temporary files automatically deleted")
     
     # Show performance statistics
-    if args.parallel and len(files) > 1:
+    if parallel and len(files) > 1:
         print(f"\nPERFORMANCE STATISTICS:")
         print(f"  - Files processed: {len(files)}")
         print(f"  - Time per file: {total_time/len(files):.1f} seconds")
-        print(f"  - Speedup from parallelization: ~{optimal_workers}x")
+        print(f"  - Speedup from parallelization: ~{workers}x")
         print(f"  - GPU used: {'Yes' if gpu_available else 'No'}")
-        print(f"  - Logic: New multithreaded processing with speaker organization")
+        print(f"  - Mode: Multithreaded with smart splitting")
         print(f"  - Threads per file: 4 (max)")
         print(f"  - Diarization: Locked (single thread)")
     else:
@@ -433,9 +432,9 @@ def main():
         print(f"  - Files processed: {len(files)}")
         print(f"  - Total time: {total_time/60:.1f} minutes")
         print(f"  - GPU used: {'Yes' if gpu_available else 'No'}")
-        print(f"  - Logic: Single file processing with speaker organization")
-        print(f"  - Threads per file: 4 (max)")
-        print(f"  - Diarization: Locked (single thread)")
+        print(f"  - Mode: Single-threaded for stability")
+        print(f"  - VAD: CPU (for compatibility)")
+        print(f"  - Diarization: Sequential")
 
 if __name__ == "__main__":
     main() 

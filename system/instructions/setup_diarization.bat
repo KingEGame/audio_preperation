@@ -13,14 +13,6 @@ echo.
 echo    %L_BLUE%DIARIZATION SETUP%RESET%
 echo.
 
-echo    %L_YELLOW%Installing build tools...%RESET%
-conda install -c conda-forge wheel setuptools cmake -y || (
-    echo %L_YELLOW%Warning: Failed to install cmake via conda, trying pip...%RESET%
-    pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-        echo %L_YELLOW%Warning: Failed to install cmake%RESET%
-    )
-)
-
 echo    %L_YELLOW%Checking PyAnnote...%RESET%
 python -c "import pyannote.audio; print('PyAnnote already installed')" 2>nul && (
     echo    %L_GREEN%PyAnnote is already installed%RESET%

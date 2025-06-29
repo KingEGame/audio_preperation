@@ -77,7 +77,7 @@ if "%ERRORLEVEL%" EQU "0" (
 )
 
 echo    %L_CYAN%8. Diarization token...%RESET%
-call system\instructions\test_diarization_token.bat
+call system\fixes\test_diarization_token.bat
 
 echo    %L_CYAN%9. All versions...%RESET%
 call system\instructions\check_versions.bat

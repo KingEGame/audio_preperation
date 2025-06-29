@@ -108,13 +108,8 @@ class ModelManager:
             try:
                 import silero_vad
                 self.models[model_key] = silero_vad.load_silero_vad()
-                # Пытаемся использовать GPU, но с fallback на CPU
-                try:
-                    if self.device.type == "cuda":
-                        self.models[model_key] = self.models[model_key].to(self.device)
-                except Exception as e:
-                    # Если не удалось переместить на GPU, используем CPU
-                    self.models[model_key] = self.models[model_key].cpu()
+                if self.device.type == "cuda":
+                    self.models[model_key] = self.models[model_key].to(self.device)
             except ImportError:
                 raise ImportError("silero-vad not installed")
         

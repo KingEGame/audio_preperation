@@ -106,11 +106,11 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
     logger.info(f"Starting silence removal from file: {input_wav}")
     
     # Определяем устройство - учитываем force_cpu_vad
-    device = torch.device("cpu")  # По умолчанию CPU
     if use_gpu and not force_cpu_vad and gpu_manager and gpu_manager.device.type == "cuda":
         device = gpu_manager.device
-        logger.info(f"Attempting to use GPU for VAD: {device}")
+        logger.info(f"Using device for VAD: {device}")
     else:
+        device = torch.device("cpu")
         if force_cpu_vad:
             logger.info(f"Using CPU for VAD: {device} (forced)")
         else:
@@ -131,19 +131,7 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
             model = model_manager.get_silero_vad_model()
         else:
             model = silero_vad.load_silero_vad()
-        
-        # Пытаемся использовать GPU, но с fallback на CPU
-        try:
-            if device.type == "cuda":
-                model = model.to(device)
-                logger.info(f"Model moved to GPU: {device}")
-            else:
-                model = model.cpu()
-                logger.info("Model using CPU")
-        except Exception as e:
-            logger.warning(f"Failed to move model to {device}, using CPU: {e}")
-            device = torch.device("cpu")
-            model = model.cpu()
+            model = model.to(device)
         
         # Анализ речи
         speech_timestamps = silero_vad.get_speech_timestamps(
@@ -170,65 +158,6 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
             gpu_manager.cleanup()
         
         return output_wav
-        
-    except RuntimeError as e:
-        if "NYI" in str(e) and device.type == "cuda":
-            logger.warning(f"GPU VAD failed with NYI error, falling back to CPU: {e}")
-            logger.info("Retrying with CPU...")
-            
-            # Fallback на CPU
-            device = torch.device("cpu")
-            logger.info(f"Using device for VAD: {device} (fallback)")
-            
-            try:
-                # Перезагружаем аудио на CPU
-                wav, sr = torchaudio.load(input_wav)
-                wav = wav.to(device)
-                
-                # Ресэмплируем если нужно
-                if sr != sample_rate:
-                    wav = torchaudio.functional.resample(wav, sr, sample_rate)
-                    sr = sample_rate
-                
-                # Получаем модель на CPU
-                if model_manager:
-                    model = model_manager.get_silero_vad_model()
-                else:
-                    model = silero_vad.load_silero_vad()
-                model = model.cpu()
-                
-                # Анализ речи на CPU
-                speech_timestamps = silero_vad.get_speech_timestamps(
-                    wav[0],
-                    model=model,
-                    sampling_rate=sr,
-                    min_speech_duration_ms=min_speech_duration_ms,
-                    min_silence_duration_ms=min_silence_duration_ms,
-                    window_size_samples=window_size_samples
-                )
-                
-                if not speech_timestamps:
-                    logger.warning("Speech not found, returning original file.")
-                    return input_wav
-                
-                # Создаем аудио без тишины
-                speech_audio = torch.cat([wav[:, ts['start']:ts['end']] for ts in speech_timestamps], dim=1)
-                torchaudio.save(output_wav, speech_audio.cpu(), sr)
-                logger.info(f"File without silence saved (CPU fallback): {output_wav}")
-                
-                # Очищаем
-                del wav, speech_audio
-                if gpu_manager:
-                    gpu_manager.cleanup()
-                
-                return output_wav
-                
-            except Exception as cpu_error:
-                logger.error(f"CPU fallback also failed: {cpu_error}")
-                return input_wav
-        else:
-            logger.error(f"Error during silence removal: {e}")
-            return input_wav
         
     except Exception as e:
         logger.error(f"Error during silence removal: {e}")

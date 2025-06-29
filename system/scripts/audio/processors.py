@@ -13,7 +13,7 @@ from functools import partial
 
 from .managers import GPUMemoryManager, ModelManager
 from .stages import clean_audio_with_demucs_optimized, remove_silence_with_silero_optimized, diarize_with_pyannote_optimized
-from .splitters import split_audio_by_duration_optimized, split_audio_at_word_boundary_optimized
+from .splitters import split_audio_by_duration_optimized, split_audio_at_word_boundary_optimized, split_audio_smart_multithreaded_optimized
 from .utils import copy_results_to_output_optimized
 from .config import GPU_MEMORY_LIMIT
 
@@ -44,7 +44,16 @@ def process_audio_file_optimized(audio_file, output_dir, steps, chunk_duration,
             if 'split' in steps:
                 logger.info(f"Splitting file: {current.name}")
                 try:
-                    if split_method == 'word_boundary':
+                    if split_method == 'smart_multithreaded':
+                        whisper_model = model_manager.get_whisper_model("base")
+                        parts = split_audio_smart_multithreaded_optimized(
+                            str(current), file_temp_dir / 'parts', 
+                            max_duration_sec=chunk_duration, 
+                            whisper_model=whisper_model, 
+                            max_workers=4,  # Оптимальное количество потоков
+                            logger=logger
+                        )
+                    elif split_method == 'word_boundary':
                         whisper_model = model_manager.get_whisper_model("base")
                         parts = split_audio_at_word_boundary_optimized(
                             str(current), file_temp_dir / 'parts', 
@@ -267,7 +276,15 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
         # 1. Разделение на чанки (многопоточное)
         if 'split' in steps:
             logger.info("Stage 1: Audio splitting (multithreaded)")
-            if split_method == 'word_boundary':
+            if split_method == 'smart_multithreaded':
+                parts = split_audio_smart_multithreaded_optimized(
+                    str(current), temp_dir / 'chunks', 
+                    max_duration_sec=chunk_duration, 
+                    whisper_model=model_manager.get_whisper_model("base") if model_manager else None,
+                    max_workers=4,  # Оптимальное количество потоков
+                    logger=logger
+                )
+            elif split_method == 'word_boundary':
                 parts = split_audio_at_word_boundary_optimized(
                     str(current), temp_dir / 'chunks', 
                     max_duration_sec=chunk_duration, 

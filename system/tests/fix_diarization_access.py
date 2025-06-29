@@ -82,6 +82,7 @@ def main():
     if not token_file.exists():
         print("✗ hf_token.txt file not found")
         print("First run setup_diarization.py to create token")
+        os.startfile("system\instructions\setup_diarization.bat")
         return
     
     with open(token_file, "r") as f:
@@ -90,6 +91,7 @@ def main():
     if not token:
         print("✗ Token empty in hf_token.txt file")
         print("First run setup_diarization.py to create token")
+        os.startfile("system\instructions\setup_diarization.bat")
         return
     
     print(f"✓ Token found: {token[:10]}...")
