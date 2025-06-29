@@ -1,10 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Generate the ESC character
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
-
-:: Colors
 set "L_RED=%ESC%[91m"
 set "L_GREEN=%ESC%[92m"
 set "L_YELLOW=%ESC%[93m"
@@ -13,7 +10,7 @@ set "L_BLUE=%ESC%[94m"
 set "RESET=%ESC%[0m"
 
 echo.
-echo    %L_BLUE%TESTING GPU COMPATIBILITY%RESET%
+echo    %L_BLUE%GPU COMPATIBILITY%RESET%
 echo.
 set "PYTHON_EXE=%cd%\audio_environment\env\python.exe"
 

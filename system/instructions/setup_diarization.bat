@@ -1,10 +1,7 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: Generate the ESC character
 for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
-
-:: Colors
 set "L_RED=%ESC%[91m"
 set "L_GREEN=%ESC%[92m"
 set "L_YELLOW=%ESC%[93m"
@@ -13,41 +10,39 @@ set "L_BLUE=%ESC%[94m"
 set "RESET=%ESC%[0m"
 
 echo.
-echo    %L_BLUE%SETUP DIARIZATION%RESET%
+echo    %L_BLUE%DIARIZATION SETUP%RESET%
 echo.
-
 
 echo    %L_YELLOW%Installing build tools...%RESET%
 conda install -c conda-forge wheel setuptools cmake -y || (
     echo %L_YELLOW%Warning: Failed to install cmake via conda, trying pip...%RESET%
     pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-        echo %L_YELLOW%Warning: Failed to install cmake, trying alternative approach...%RESET%
+        echo %L_YELLOW%Warning: Failed to install cmake%RESET%
     )
 )
 
-echo    %L_YELLOW%Checking if PyAnnote is already installed...%RESET%
+echo    %L_YELLOW%Checking PyAnnote...%RESET%
 python -c "import pyannote.audio; print('PyAnnote already installed')" 2>nul && (
-    echo    %L_GREEN%PyAnnote is already installed!%RESET%
+    echo    %L_GREEN%PyAnnote is already installed%RESET%
 ) || (
     echo    %L_YELLOW%PyAnnote not found, installing...%RESET%
-    echo    %L_CYAN%Installing sentencepiece via conda...%RESET%
+    echo    %L_CYAN%Installing sentencepiece...%RESET%
     conda install -c conda-forge sentencepiece -y || (
-        echo %L_RED%Failed to install sentencepiece via conda!%RESET%
+        echo %L_RED%Failed to install sentencepiece%RESET%
         pause
         exit /b 1
     )
     
     echo    %L_CYAN%Installing speechbrain...%RESET%
     pip install speechbrain --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-        echo %L_RED%Failed to install speechbrain!%RESET%
+        echo %L_RED%Failed to install speechbrain%RESET%
         pause
         exit /b 1
     )
     
     echo    %L_CYAN%Installing pyannote.audio...%RESET%
     pip install pyannote.audio --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-        echo %L_RED%Failed to install pyannote.audio!%RESET%
-        echo Please check the error messages above.
+        echo %L_RED%Failed to install pyannote.audio%RESET%
         pause
         exit /b 1
     )
@@ -75,9 +70,9 @@ echo !HF_TOKEN! > hf_token.txt
 
 echo    %L_CYAN%Testing diarization...%RESET%
 python -c "import pyannote.audio; print('PyAnnote installed successfully')" || (
-    echo %L_RED%PyAnnote test failed.%RESET%
+    echo %L_RED%PyAnnote test failed%RESET%
     pause
     exit /b 1
 )
 
-echo    %L_GREEN%Diarization setup completed!%RESET%
+echo    %L_GREEN%Diarization setup completed%RESET%

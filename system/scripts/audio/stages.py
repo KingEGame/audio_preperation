@@ -105,13 +105,10 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
     
     logger.info(f"Starting silence removal from file: {input_wav}")
     
-    # Определяем устройство
-    if use_gpu and gpu_manager and gpu_manager.device.type == "cuda":
-        device = gpu_manager.device
-        logger.info(f"Using device for VAD: {device}")
-    else:
-        device = torch.device("cpu")
-        logger.info(f"Using device for VAD: {device}")
+    # FIX: Force CPU usage for Silero VAD to avoid "RuntimeError: NYI" issue
+    # This is a known compatibility issue with Silero VAD and CUDA
+    device = torch.device("cpu")
+    logger.info(f"Using device for VAD: {device} (forced CPU for compatibility)")
     
     try:
         # Загружаем аудио
@@ -123,12 +120,14 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
             wav = torchaudio.functional.resample(wav, sr, sample_rate)
             sr = sample_rate
         
-        # Получаем кэшированную модель
+        # Получаем кэшированную модель (всегда на CPU)
         if model_manager:
             model = model_manager.get_silero_vad_model()
+            # Force model to CPU to avoid GPU compatibility issues
+            model = model.cpu()
         else:
             model = silero_vad.load_silero_vad()
-            model = model.to(device)
+            model = model.cpu()  # Force CPU usage
         
         # Анализ речи
         speech_timestamps = silero_vad.get_speech_timestamps(
