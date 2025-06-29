@@ -80,9 +80,9 @@ def analyze_boundary_segment(input_audio, segment_start, segment_end, segment_id
     Анализирует сегмент для поиска границ предложений (выполняется в отдельном потоке)
     """
     try:
-        # Создаем уникальную временную папку для каждого потока ВНУТРИ переданной temp_dir
-        temp_dir = Path(temp_dir)
-        segment_temp_dir = temp_dir / f"temp_analysis_{segment_id}"
+        # Используем центральную временную папку вместо папки с исходными файлами
+        central_temp_dir = get_central_temp_dir()
+        segment_temp_dir = central_temp_dir / f"temp_analysis_{segment_id}"
         segment_temp_dir.mkdir(exist_ok=True)
         temp_file = segment_temp_dir / f"temp_analysis_{segment_id}.wav"
         
@@ -323,11 +323,21 @@ def split_audio_smart_multithreaded_optimized(input_audio, temp_dir, max_duratio
         # Обновляем начальную точку для следующей части
         current_start = best_split_point
     
-    # Очищаем временные файлы
-    temp_analysis_dir = Path(temp_dir) / "temp_analysis"
-    if temp_analysis_dir.exists():
-        import shutil
-        shutil.rmtree(temp_analysis_dir)
+    # Очищаем временные файлы из центральной папки
+    central_temp_dir = get_central_temp_dir()
+    temp_analysis_patterns = ["temp_analysis_*"]
+    
+    for pattern in temp_analysis_patterns:
+        temp_files = list(central_temp_dir.glob(pattern))
+        for temp_file in temp_files:
+            try:
+                if temp_file.is_file():
+                    temp_file.unlink()
+                elif temp_file.is_dir():
+                    import shutil
+                    shutil.rmtree(temp_file)
+            except Exception as e:
+                logger.warning(f"Could not remove temp file {temp_file}: {e}")
     
     logger.info(f"Smart splitting completed: {len(parts)} parts created")
     return parts
@@ -368,8 +378,9 @@ def split_audio_at_word_boundary_optimized(input_audio, temp_dir, max_duration_s
         analysis_start = max(0, start_time - 30)
         analysis_end = min(total_seconds, end_time + 30)
         
-        # Создаем временный файл для анализа ВНУТРИ temp_dir
-        temp_file = Path(temp_dir) / f"temp_analysis_{i}.wav"
+        # Создаем временный файл для анализа в центральной временной папке
+        central_temp_dir = get_central_temp_dir()
+        temp_file = central_temp_dir / f"temp_analysis_{i}.wav"
         command = [
             "ffmpeg", "-i", input_audio,
             "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",

@@ -12,7 +12,7 @@ from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_compl
 from functools import partial
 
 from .managers import GPUMemoryManager, ModelManager
-from .stages import clean_audio_with_demucs_optimized, remove_silence_with_silero_optimized, diarize_with_pyannote_optimized
+from .stages import clean_audio_with_demucs_optimized, diarize_with_pyannote_optimized
 from .splitters import split_audio_by_duration_optimized, split_audio_at_word_boundary_optimized, split_audio_smart_multithreaded_optimized
 from .utils import copy_results_to_output_optimized
 from .config import GPU_MEMORY_LIMIT

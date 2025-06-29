@@ -32,7 +32,7 @@ try:
         GPUMemoryManager, ModelManager,
         process_audio_file_optimized, parallel_audio_processing_optimized,
         process_multiple_files_parallel_optimized,
-        clean_audio_with_demucs_optimized, remove_silence_with_silero_optimized, 
+        clean_audio_with_demucs_optimized, 
         diarize_with_pyannote_optimized,
         split_audio_by_duration_optimized, split_audio_at_word_boundary_optimized,
         get_mp3_duration, setup_logging, copy_results_to_output_optimized,
@@ -40,7 +40,7 @@ try:
         MAX_WORKERS, GPU_MEMORY_LIMIT, BATCH_SIZE
     )
     # Импорт функций конфигурации
-    from config import get_token, token_exists
+    from config import get_token, token_exists, ensure_directories
 except ImportError as e:
     print(f"Import error: {e}")
     print("Make sure all dependencies are installed")
@@ -56,6 +56,9 @@ def main():
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     parser.add_argument('--interactive', action='store_true', help='Interactive mode with parameter prompts')
     args = parser.parse_args()
+
+    # Создаем необходимые директории
+    ensure_directories()
 
     # Pre-configured optimal parameters
     if args.mode == 'multithreaded':
