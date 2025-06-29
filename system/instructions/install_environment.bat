@@ -108,7 +108,7 @@ pip install sentencepiece || (
 echo    %L_CYAN%Installing remaining dependencies...%RESET%
 echo    %L_YELLOW%Note: PyTorch was installed first, now installing other dependencies...%RESET%
 
-pip install -r ..\requirements\requirements.txt  || (
+pip install -r system\requirements\requirements.txt  || (
     echo %L_RED%Failed to install remaining dependencies!%RESET%
     echo Please check the error messages above and try again.
     pause
