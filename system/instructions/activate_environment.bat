@@ -54,4 +54,3 @@ if "%ERRORLEVEL%" NEQ "0" (
 echo %L_GREEN%✅ Portable environment activated successfully!%RESET%
 echo %L_CYAN%🐍 Python: !INSTALL_ENV_DIR!\python.exe%RESET%
 echo %L_CYAN%📦 Conda: !CONDA_ROOT_PREFIX!\_conda.exe%RESET%
-exit /b 0 

@@ -190,7 +190,7 @@ echo echo. >> activate_environment.bat
 echo. >> activate_environment.bat
 echo :: Check if environment exists >> activate_environment.bat
 echo if not exist "audio_environment" ^( >> activate_environment.bat
-echo     echo ❌ Environment not found! >> activate_environment.bat
+echo     echo ❌ Environment not found >> activate_environment.bat
 echo     echo. >> activate_environment.bat
 echo     echo Run setup.bat and select option 1 to install the environment. >> activate_environment.bat
 echo     echo. >> activate_environment.bat
@@ -198,23 +198,54 @@ echo     pause >> activate_environment.bat
 echo     exit /b 1 >> activate_environment.bat
 echo ^) >> activate_environment.bat
 echo. >> activate_environment.bat
-echo :: Activate environment >> activate_environment.bat
-echo call system\instructions\activate_environment.bat >> activate_environment.bat
+echo :: Set environment variables for portable conda >> activate_environment.bat
+echo set INSTALL_DIR=%%cd%%\audio_environment >> activate_environment.bat
+echo set CONDA_ROOT_PREFIX=%%cd%%\audio_environment\conda >> activate_environment.bat
+echo set INSTALL_ENV_DIR=%%cd%%\audio_environment\env >> activate_environment.bat
+echo. >> activate_environment.bat
+echo :: Check if portable conda exists >> activate_environment.bat
+echo if not exist "^!CONDA_ROOT_PREFIX^!\_conda.exe" ^( >> activate_environment.bat
+echo     echo ❌ Portable Conda not found^! Run system\instructions\install_portable_conda.bat first. >> activate_environment.bat
+echo     pause >> activate_environment.bat
+echo     exit /b 1 >> activate_environment.bat
+echo ^) >> activate_environment.bat
+echo. >> activate_environment.bat
+echo :: Check if environment exists >> activate_environment.bat
+echo if not exist "^!INSTALL_ENV_DIR^!\python.exe" ^( >> activate_environment.bat
+echo     echo ❌ Environment not found^! Run system\instructions\install_portable_conda.bat first. >> activate_environment.bat
+echo     pause >> activate_environment.bat
+echo     exit /b 1 >> activate_environment.bat
+echo ^) >> activate_environment.bat
+echo. >> activate_environment.bat
+echo :: Set environment variables >> activate_environment.bat
+echo set CONDA_DEFAULT_ENV=audio_env >> activate_environment.bat
+echo set CONDA_PROMPT_MODIFIER=^(audio_env^) >> activate_environment.bat
+echo. >> activate_environment.bat
+echo :: Activate the environment using portable conda >> activate_environment.bat
+echo echo    Activating environment... >> activate_environment.bat
+echo call "%%CONDA_ROOT_PREFIX%%\condabin\conda.bat" activate "%%INSTALL_ENV_DIR%%" ^|^| ^( >> activate_environment.bat
+echo     echo ❌ Failed to activate environment >> activate_environment.bat
+echo     pause >> activate_environment.bat
+echo     exit /b 1 >> activate_environment.bat
+echo ^) >> activate_environment.bat
+echo. >> activate_environment.bat
+echo :: Verify we're using the right Python >> activate_environment.bat
+echo python -c "import sys; print^('Python path:', sys.executable^)" ^| findstr "audio_environment" ^>nul >> activate_environment.bat
+echo if "%%ERRORLEVEL%%" NEQ "0" ^( >> activate_environment.bat
+echo     echo ❌ ERROR: Still using wrong Python^! >> activate_environment.bat
+echo     echo Expected: ^!INSTALL_ENV_DIR^!\python.exe >> activate_environment.bat
+echo     echo Actual:  >> activate_environment.bat
+echo     python -c "import sys; print^(sys.executable^)" >> activate_environment.bat
+echo     pause >> activate_environment.bat
+echo     exit /b 1 >> activate_environment.bat
+echo ^) >> activate_environment.bat
 echo. >> activate_environment.bat
 echo echo. >> activate_environment.bat
-echo echo ✅ Environment activated! >> activate_environment.bat
+echo echo ✅ Environment activated >> activate_environment.bat
 echo echo 🐍 Now you can use Python commands >> activate_environment.bat
 echo echo. >> activate_environment.bat
-echo echo 💡 Example commands: >> activate_environment.bat
-echo echo   python system\scripts\audio_processing.py --help >> activate_environment.bat
-echo echo   python system\tests\test_gpu.py >> activate_environment.bat
-echo echo   python system\tests\test_new_architecture.py >> activate_environment.bat
-echo echo   python -c "import torch; print(torch.__version__)" >> activate_environment.bat
 echo echo. >> activate_environment.bat
-echo echo 🔄 To deactivate, enter: conda deactivate >> activate_environment.bat
-echo echo. >> activate_environment.bat
-echo echo Среда активирована. Можно работать!
-echo cmd /K
+echo cmd /K >> activate_environment.bat
 
 :: Create cleanup_temp.bat
 echo @echo off > cleanup_temp.bat
@@ -230,53 +261,25 @@ echo echo This will remove old temporary processing folders. >> cleanup_temp.bat
 echo echo 🆕 Now includes GPU memory cleanup. >> cleanup_temp.bat
 echo echo. >> cleanup_temp.bat
 echo. >> cleanup_temp.bat
-echo :: Check if environment exists >> cleanup_temp.bat
-echo if not exist "audio_environment" ^( >> cleanup_temp.bat
-echo     echo ❌ Environment not found! >> cleanup_temp.bat
-echo     echo. >> cleanup_temp.bat
-echo     echo Run setup.bat and select option 1 to install the environment. >> cleanup_temp.bat
-echo     echo. >> cleanup_temp.bat
-echo     pause >> cleanup_temp.bat
-echo     exit /b 1 >> cleanup_temp.bat
-echo ^) >> cleanup_temp.bat
-echo. >> cleanup_temp.bat
 echo :: Check if dry run is requested >> cleanup_temp.bat
-echo if "%%~1"=="--dry-run" ^( >> cleanup_temp.bat
-echo     echo 📋 Running in DRY RUN mode - no files will be deleted >> cleanup_temp.bat
+echo echo 📋 This will delete temporary folders older than 24 hours. >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo set /p CONFIRM="Continue with cleanup? (y/n): " >> cleanup_temp.bat
+echo if /i not "^!CONFIRM^!"=="y" ^( >> cleanup_temp.bat
+echo     echo Cleanup cancelled. >> cleanup_temp.bat
 echo     echo. >> cleanup_temp.bat
-echo     call system\fixes\cleanup_temp_folders.bat --dry-run >> cleanup_temp.bat
-echo ^) else if "%%~1"=="--help" ^( >> cleanup_temp.bat
-echo     echo 📋 Usage options: >> cleanup_temp.bat
-echo     echo   cleanup_temp.bat          - Clean up old folders (24h+) >> cleanup_temp.bat
-echo     echo   cleanup_temp.bat --dry-run - Show what would be deleted >> cleanup_temp.bat
-echo     echo   cleanup_temp.bat --help    - Show this help >> cleanup_temp.bat
-echo     echo. >> cleanup_temp.bat
-echo     echo 📝 Examples: >> cleanup_temp.bat
-echo     echo   cleanup_temp.bat >> cleanup_temp.bat
+echo     echo To see what would be deleted without actually deleting: >> cleanup_temp.bat
 echo     echo   cleanup_temp.bat --dry-run >> cleanup_temp.bat
-echo     echo. >> cleanup_temp.bat
 echo     pause >> cleanup_temp.bat
 echo     exit /b 0 >> cleanup_temp.bat
-echo ^) else ^( >> cleanup_temp.bat
-echo     echo 📋 This will delete temporary folders older than 24 hours. >> cleanup_temp.bat
-echo     echo. >> cleanup_temp.bat
-echo     set /p CONFIRM="Continue with cleanup? (y/n): " >> cleanup_temp.bat
-echo     if /i not "!CONFIRM!"=="y" ^( >> cleanup_temp.bat
-echo         echo Cleanup cancelled. >> cleanup_temp.bat
-echo         echo. >> cleanup_temp.bat
-echo         echo To see what would be deleted without actually deleting: >> cleanup_temp.bat
-echo         echo   cleanup_temp.bat --dry-run >> cleanup_temp.bat
-echo         pause >> cleanup_temp.bat
-echo         exit /b 0 >> cleanup_temp.bat
-echo     ^) >> cleanup_temp.bat
-echo     echo. >> cleanup_temp.bat
-echo     echo Starting cleanup... >> cleanup_temp.bat
-echo     echo. >> cleanup_temp.bat
-echo     call system\fixes\cleanup_temp_folders.bat >> cleanup_temp.bat
 echo ^) >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo echo Starting cleanup... >> cleanup_temp.bat
+echo echo. >> cleanup_temp.bat
+echo call system\fixes\cleanup_temp_folders.bat >> cleanup_temp.bat
 echo. >> cleanup_temp.bat
 echo echo. >> cleanup_temp.bat
-echo echo ✅ Cleanup completed! >> cleanup_temp.bat
+echo echo ✅ Cleanup completed >> cleanup_temp.bat
 echo echo. >> cleanup_temp.bat
 echo pause >> cleanup_temp.bat
 

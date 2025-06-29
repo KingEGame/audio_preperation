@@ -34,24 +34,26 @@ pip install wheel setuptools cmake --upgrade --trusted-host pypi.org --trusted-h
     echo %L_YELLOW%Warning: Failed to install cmake, trying alternative approach...%RESET%
 )
 
-echo    %L_YELLOW%Installing PyAnnote from requirements.txt...%RESET%
-pip install -r system\requirements\requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-    echo %L_YELLOW%Main installation failed, trying conda method...%RESET%
-    echo %L_CYAN%Installing sentencepiece via conda...%RESET%
+echo    %L_YELLOW%Checking if PyAnnote is already installed...%RESET%
+python -c "import pyannote.audio; print('PyAnnote already installed')" 2>nul && (
+    echo    %L_GREEN%PyAnnote is already installed!%RESET%
+) || (
+    echo    %L_YELLOW%PyAnnote not found, installing...%RESET%
+    echo    %L_CYAN%Installing sentencepiece via conda...%RESET%
     conda install -c conda-forge sentencepiece -y || (
         echo %L_RED%Failed to install sentencepiece via conda!%RESET%
         pause
         exit /b 1
     )
     
-    echo %L_CYAN%Installing speechbrain...%RESET%
+    echo    %L_CYAN%Installing speechbrain...%RESET%
     pip install speechbrain --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
         echo %L_RED%Failed to install speechbrain!%RESET%
         pause
         exit /b 1
     )
     
-    echo %L_CYAN%Installing pyannote.audio...%RESET%
+    echo    %L_CYAN%Installing pyannote.audio...%RESET%
     pip install pyannote.audio --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
         echo %L_RED%Failed to install pyannote.audio!%RESET%
         echo Please check the error messages above.
