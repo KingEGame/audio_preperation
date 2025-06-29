@@ -45,7 +45,7 @@ if "!CUDA_CHOICE!"=="" set "CUDA_CHOICE=2"
 :: Install PyTorch based on choice using our specific PyTorch files
 if "!CUDA_CHOICE!"=="1" (
     echo    %L_CYAN%Installing PyTorch with CUDA 11.8 support...%RESET%
-    conda install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 || (
+    pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu118 || (
         echo %L_RED%Failed to install PyTorch with CUDA 11.8!%RESET%
         pause
         exit /b 1
@@ -53,7 +53,7 @@ if "!CUDA_CHOICE!"=="1" (
     set "CUDA_VERSION=11.8"
 ) else if "!CUDA_CHOICE!"=="2" (
     echo    %L_CYAN%Installing PyTorch with CUDA 12.1 support...%RESET%
-    conda install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 || (
+    pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu121 || (
         echo %L_RED%Failed to install PyTorch with CUDA 12.1!%RESET%
         pause
         exit /b 1
@@ -61,7 +61,7 @@ if "!CUDA_CHOICE!"=="1" (
     set "CUDA_VERSION=12.1"
 ) else if "!CUDA_CHOICE!"=="3" (
     echo    %L_CYAN%Installing PyTorch with CUDA 12.8 support...%RESET%
-    conda install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 || (
+    pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128 || (
         echo %L_RED%Failed to install PyTorch with CUDA 12.8!%RESET%
         pause
         exit /b 1
@@ -69,7 +69,7 @@ if "!CUDA_CHOICE!"=="1" (
     set "CUDA_VERSION=12.8"
 ) else if "!CUDA_CHOICE!"=="4" (
     echo    %L_CYAN%Installing PyTorch CPU-only version...%RESET%
-    conda install torch torchvision torchaudio || (
+    pip3 install torch torchvision torchaudio || (
         echo %L_RED%Failed to install PyTorch CPU version!%RESET%
         pause
         exit /b 1
