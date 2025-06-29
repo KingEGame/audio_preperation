@@ -94,7 +94,10 @@ goto MainMenu
 :InstallEnvironment
 echo.
 echo    %L_CYAN%Installing complete environment with all dependencies...%RESET%
-echo    %L_YELLOW%This includes: Python, PyTorch, Whisper, Demucs, FFmpeg, and Diarization%RESET%
+echo    %L_YELLOW%This includes: Portable Miniconda, Python, PyTorch, Whisper, Demucs, FFmpeg%RESET%
+echo.
+echo    %L_GREEN%Using portable Conda installation - no system changes required!%RESET%
+echo    %L_YELLOW%This creates a self-contained environment in the project folder.%RESET%
 echo.
 call system\instructions\install_environment.bat
 goto MainMenu

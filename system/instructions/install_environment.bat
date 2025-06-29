@@ -15,8 +15,7 @@ set "RESET=%ESC%[0m"
 echo.
 echo    %L_BLUE%INSTALLING AUDIO PROCESSING ENVIRONMENT%RESET%
 echo.
-echo    %L_GREEN%This will create/update a Conda environment with dependencies:%RESET%
-echo    - Python 3.11
+echo    %L_GREEN%This will install all dependencies in the portable Conda environment:%RESET%
 echo    - PyTorch with CUDA support (selectable version)
 echo    - Whisper, Demucs, TorchAudio
 echo    - FFmpeg and other audio tools
@@ -27,69 +26,49 @@ echo.
 pause
 
 :: Set environment variables
-set "INSTALL_DIR=%cd%\audio_environment"
-set "CONDA_ROOT_PREFIX=%cd%\audio_environment\conda"
-set "INSTALL_ENV_DIR=%cd%\audio_environment\env"
-set "MINICONDA_URL=https://repo.anaconda.com/miniconda/Miniconda3-latest-Windows-x86_64.exe"
-set "conda_exists=F"
+set INSTALL_DIR=%cd%\audio_environment
+set CONDA_ROOT_PREFIX=%cd%\audio_environment\conda
+set INSTALL_ENV_DIR=%cd%\audio_environment\env
 
-:: Check if conda already exists
-call "%CONDA_ROOT_PREFIX%\_conda.exe" --version >nul 2>&1
-if "%ERRORLEVEL%" EQU "0" (
-    set conda_exists=T
-    call "%CONDA_ROOT_PREFIX%\condabin\conda.bat" activate "%INSTALL_ENV_DIR%"
-    goto RunScript
+:: Check if portable conda exists
+if not exist "%CONDA_ROOT_PREFIX%\_conda.exe" (
+    echo    %L_RED%Portable Conda not found!%RESET%
+    echo    %L_YELLOW%Installing portable Conda first...%RESET%
+    call system\instructions\install_portable_conda.bat
+    if "%ERRORLEVEL%" NEQ "0" (
+        echo    %L_RED%Failed to install portable Conda!%RESET%
+        pause
+        exit /b 1
+    )
 )
 
-:: Download and install conda if not installed
-echo.
-echo    %L_CYAN%Downloading Miniconda from %MINICONDA_URL% to %INSTALL_DIR%\miniconda_installer.exe%RESET%
-mkdir "%INSTALL_DIR%"
-call curl -Lk "%MINICONDA_URL%" > "%INSTALL_DIR%\miniconda_installer.exe" || (
-    echo. && echo %L_RED%Miniconda failed to download.%RESET% && pause && exit /b 1
-)
-
-echo    %L_GREEN%Installing Miniconda to %CONDA_ROOT_PREFIX%%RESET%
-start /wait "" "%INSTALL_DIR%\miniconda_installer.exe" /InstallationType=JustMe /NoShortcuts=1 /AddToPath=0 /RegisterPython=0 /NoRegistry=1 /S /D=%CONDA_ROOT_PREFIX%
-
-echo    %L_CYAN%Miniconda version:%RESET%
-call "%CONDA_ROOT_PREFIX%\_conda.exe" --version || (
-    echo. && echo %L_RED%Miniconda not found.%RESET% && pause && exit /b 1
-)
-
-:: Initialize conda for the current shell
-echo    %L_CYAN%Initializing conda...%RESET%
-call "%CONDA_ROOT_PREFIX%\_conda.exe" init cmd.exe --all --quiet || (
-    echo. && echo %L_YELLOW%Warning: Conda init failed, but continuing...%RESET%
-)
-
-:: Create the installer env
-echo.
-echo    %L_GREEN%Creating Python 3.11 environment...%RESET%
-call "%CONDA_ROOT_PREFIX%\_conda.exe" create --no-shortcuts -y -k --prefix "%INSTALL_ENV_DIR%" python=3.11 || (
-    echo. && echo %L_RED%Conda environment creation failed.%RESET% && pause && exit /b 1
-)
-
-:: Check if conda environment was actually created
+:: Check if environment exists
 if not exist "%INSTALL_ENV_DIR%\python.exe" (
-    echo. && echo %L_RED%Conda environment is empty.%RESET% && pause && exit /b 1
+    echo    %L_RED%Python environment not found!%RESET%
+    echo    %L_YELLOW%Creating environment...%RESET%
+    "%CONDA_ROOT_PREFIX%\_conda.exe" create --no-shortcuts -y -k --prefix "%INSTALL_ENV_DIR%" python=3.11 || (
+        echo    %L_RED%Failed to create environment!%RESET%
+        pause
+        exit /b 1
+    )
 )
 
-:: Activate installer env
-call "%CONDA_ROOT_PREFIX%\condabin\conda.bat" activate "%INSTALL_ENV_DIR%" || (
-    echo. && echo %L_RED%Miniconda hook not found.%RESET% && pause && exit /b 1
+:: Activate environment
+echo    %L_CYAN%Activating portable environment...%RESET%
+call system\instructions\activate_environment.bat || (
+    echo    %L_RED%Failed to activate environment!%RESET%
+    pause
+    exit /b 1
 )
 
-:RunScript
-echo.
 echo    %L_YELLOW%Installing all dependencies. This step can take a long time%RESET%
 echo    %L_YELLOW%depending on your internet connection and hard drive speed. Please be patient.%RESET%
 echo.
 
-:: Install build tools first
-echo    %L_CYAN%Installing build tools...%RESET%
-pip install wheel setuptools --upgrade --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-    echo %L_YELLOW%Warning: Failed to upgrade build tools, continuing...%RESET%
+:: Upgrade pip and setuptools first
+echo    %L_CYAN%Upgrading pip and setuptools...%RESET%
+"%INSTALL_ENV_DIR%\python.exe" -m pip install --upgrade pip setuptools wheel --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+    echo %L_YELLOW%Warning: Failed to upgrade pip, continuing...%RESET%
 )
 
 :: Install PyTorch with CUDA support FIRST (before other dependencies)
@@ -97,16 +76,33 @@ echo    %L_CYAN%Installing PyTorch with CUDA support (FIRST)...%RESET%
 echo    %L_YELLOW%This ensures PyTorch is installed before other packages to avoid conflicts.%RESET%
 call system\instructions\install_pytorch.bat
 
-
 :: Install remaining dependencies from main requirements file (excluding PyTorch packages)
 echo    %L_CYAN%Installing remaining dependencies...%RESET%
 echo    %L_YELLOW%Note: PyTorch was installed first, now installing other dependencies...%RESET%
 
-pip install -r system\requirements\requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+"%INSTALL_ENV_DIR%\Scripts\pip.exe" install -r system\requirements\requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
     echo %L_RED%Failed to install remaining dependencies!%RESET%
     echo Please check the error messages above and try again.
     pause
     exit /b 1
+)
+
+:: Install diarization packages separately (optional, may fail)
+echo    %L_CYAN%Installing diarization packages (optional)...%RESET%
+echo    %L_YELLOW%Note: These packages may fail if cmake/C++ compiler is not available.%RESET%
+
+:: Try to install PyAnnote and SpeechBrain
+"%INSTALL_ENV_DIR%\Scripts\pip.exe" install -r system\requirements\requirements_diarization.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+    echo %L_YELLOW%Warning: Some diarization packages failed to install.%RESET%
+    echo %L_YELLOW%This is normal if cmake/C++ compiler is not available.%RESET%
+    echo %L_YELLOW%Diarization will work with limited functionality.%RESET%
+)
+
+:: Try to install sentencepiece from pre-built wheels
+echo    %L_CYAN%Installing sentencepiece from pre-built wheels...%RESET%
+"%INSTALL_ENV_DIR%\Scripts\pip.exe" install sentencepiece --only-binary=all --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+    echo %L_YELLOW%Warning: sentencepiece installation failed.%RESET%
+    echo %L_YELLOW%This is normal - will use alternative tokenization.%RESET%
 )
 
 :: Install FFmpeg using our download script

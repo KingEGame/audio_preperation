@@ -1,65 +1,105 @@
 @echo off
-cd /D "%~dp0"
 setlocal enabledelayedexpansion
 
-:: Set environment variables
-set "CONDA_ROOT_PREFIX=%cd%\audio_environment\conda"
-set "INSTALL_ENV_DIR=%cd%\audio_environment\env"
+:: Generate the ESC character
+for /F %%a in ('echo prompt $E ^| cmd') do set "ESC=%%a"
 
-if not exist "!CONDA_ROOT_PREFIX!\condabin\conda.bat" (
-    echo ERROR: Conda not found! Run setup.bat first.
+:: Colors
+set "L_RED=%ESC%[91m"
+set "L_GREEN=%ESC%[92m"
+set "L_YELLOW=%ESC%[93m"
+set "L_CYAN=%ESC%[96m"
+set "L_BLUE=%ESC%[94m"
+set "RESET=%ESC%[0m"
+
+echo.
+echo    %L_BLUE%INSTALL WITHOUT DIARIZATION DEPENDENCIES%RESET%
+echo    %L_YELLOW%This installs everything except problematic diarization packages%RESET%
+echo.
+
+:: Check environment
+if not exist "audio_environment\env\python.exe" (
+    echo %L_RED%Environment not found! Run setup.bat option 1 first.%RESET%
     pause
     exit /b 1
 )
 
-if not exist "!INSTALL_ENV_DIR!\python.exe" (
-    echo ERROR: Environment not found! Run setup.bat first.
+:: Activate environment
+echo    %L_CYAN%Activating environment...%RESET%
+call system\instructions\activate_environment.bat || (
+    echo %L_RED%Failed to activate environment!%RESET%
     pause
     exit /b 1
 )
 
-:: Set conda environment variables
-set "CONDA_PREFIX=!INSTALL_ENV_DIR!"
-set "CONDA_DEFAULT_ENV=audio_env"
-set "CONDA_PROMPT_MODIFIER=(audio_env) "
+:: Verify we're in the right environment
+echo    %L_CYAN%Verifying environment...%RESET%
+python -c "import sys; print('Python executable:', sys.executable)"
 
-:: Add conda to PATH
-set "PATH=!CONDA_ROOT_PREFIX!\Scripts;!CONDA_ROOT_PREFIX!\Library\bin;!CONDA_ROOT_PREFIX!\condabin;!PATH!"
+:: Upgrade pip and setuptools
+echo    %L_CYAN%Upgrading pip and setuptools...%RESET%
+python -m pip install --upgrade pip setuptools wheel --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org
 
-:: Activate the environment
-call "!CONDA_ROOT_PREFIX!\condabin\conda.bat" activate "!INSTALL_ENV_DIR!" || (
-    echo ERROR: Failed to activate environment!
-    pause
-    exit /b 1
-)
+:: Install PyTorch first
+echo    %L_CYAN%Installing PyTorch with CUDA support...%RESET%
+pip install -r system\requirements\requirements_cu121.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --trusted-host download.pytorch.org --verbose
 
-echo Installing audio processing pipeline without speaker diarization...
+:: Verify PyTorch
+echo    %L_CYAN%Verifying PyTorch installation...%RESET%
+python -c "import torch; print('PyTorch version:', torch.__version__); print('CUDA available:', torch.cuda.is_available())"
 
-:: Install core dependencies
-echo Installing core dependencies...
-pip install "numpy>=1.25.2,<2.0.0" || (
-    echo Failed to install numpy
-    pause
-    exit /b 1
-)
+:: Install core packages
+echo    %L_CYAN%Installing core packages...%RESET%
+pip install "numpy>=1.25.2,<2.0.0" --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install scipy>=1.11.4 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
 
-:: Install PyTorch
-echo Installing PyTorch...
-pip install torch==2.2.2+cu121 torchaudio==2.2.2+cu121 --extra-index-url https://download.pytorch.org/whl/cu121 || (
-    echo Failed to install PyTorch
-    pause
-    exit /b 1
-)
+:: Install audio processing packages
+echo    %L_CYAN%Installing audio processing packages...%RESET%
+pip install openai-whisper>=20231117 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install demucs>=4.0.1 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install librosa>=0.10.1 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install soundfile>=0.12.1 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install ffmpeg-python>=0.2.0 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
 
-:: Install other dependencies (excluding PyAnnote)
-echo Installing other dependencies...
-pip install scipy>=1.11.4 openai-whisper>=20231117 demucs>=4.0.1 librosa>=0.10.1 soundfile>=0.12.1 ffmpeg-python>=0.2.0 silero-vad>=5.1.2 tqdm>=4.66.1 || (
-    echo Failed to install dependencies
-    pause
-    exit /b 1
-)
+:: Install HuggingFace ecosystem
+echo    %L_CYAN%Installing HuggingFace ecosystem...%RESET%
+pip install "huggingface_hub[cli]>=0.19.0" --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install transformers>=4.30.0 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
 
-echo Installation completed successfully!
-echo Note: Speaker diarization (PyAnnote) was not installed due to compilation issues.
-echo You can still use all other audio processing features.
+:: Install voice activity detection
+echo    %L_CYAN%Installing voice activity detection...%RESET%
+pip install silero-vad>=5.1.2 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+
+:: Install utilities
+echo    %L_CYAN%Installing utilities...%RESET%
+pip install tqdm>=4.66.1 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install psutil>=5.9.0 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install requests>=2.31.0 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install urllib3>=1.26.0 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+
+:: Install audio format support
+echo    %L_CYAN%Installing audio format support...%RESET%
+pip install pydub>=0.25.1 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+pip install audioread>=3.0.0 --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org --verbose
+
+:: Verify installations
+echo.
+echo    %L_CYAN%Verifying installations...%RESET%
+python -c "import torch; print('✅ PyTorch:', torch.__version__)" || echo "❌ PyTorch failed"
+python -c "import whisper; print('✅ Whisper:', whisper.__version__)" || echo "❌ Whisper failed"
+python -c "import demucs; print('✅ Demucs:', demucs.__version__)" || echo "❌ Demucs failed"
+python -c "import librosa; print('✅ Librosa:', librosa.__version__)" || echo "❌ Librosa failed"
+python -c "import numpy; print('✅ NumPy:', numpy.__version__)" || echo "❌ NumPy failed"
+python -c "import scipy; print('✅ SciPy:', scipy.__version__)" || echo "❌ SciPy failed"
+
+:: Show all installed packages
+echo.
+echo    %L_CYAN%All installed packages:%RESET%
+pip list
+
+echo.
+echo    %L_GREEN%Installation completed without diarization dependencies!%RESET%
+echo    %L_YELLOW%Note: Speaker diarization features will not be available.%RESET%
+echo    %L_YELLOW%All other features (Whisper, Demucs, VAD) will work normally.%RESET%
+echo.
 pause 
