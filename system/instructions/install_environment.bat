@@ -54,9 +54,16 @@ if not exist "%INSTALL_ENV_DIR%\python.exe" (
 
 :: Activate environment
 echo    %L_CYAN%Activating portable environment...%RESET%
-call system\instructions\activate_environment.bat || (
-    echo    %L_RED%Failed to activate environment!%RESET%
-    pause
+@rem activate installer env
+call "%CONDA_ROOT_PREFIX%\condabin\conda.bat" activate "%INSTALL_ENV_DIR%" || ( echo. && echo Miniconda hook not found. && goto end )
+
+:: Verify we're using the right Python
+python -c "import sys; print('Python path:', sys.executable)" | findstr "audio_environment" >nul
+if "%ERRORLEVEL%" NEQ "0" (
+    echo %L_RED%ERROR: Still using wrong Python!%RESET%
+    echo Expected: !INSTALL_ENV_DIR!\python.exe
+    echo Actual: 
+    python -c "import sys; print(sys.executable)"
     exit /b 1
 )
 

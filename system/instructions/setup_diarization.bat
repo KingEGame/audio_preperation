@@ -15,19 +15,7 @@ set "RESET=%ESC%[0m"
 echo.
 echo    %L_BLUE%SETUP DIARIZATION%RESET%
 echo.
-set "PYTHON_EXE=%cd%\audio_environment\env\python.exe"
 
-if not exist "!PYTHON_EXE!" (
-    echo %L_RED%Environment not found! Run install_environment.bat first.%RESET%
-    pause
-    exit /b 1
-)
-
-echo    %L_CYAN%Activating environment...%RESET%
-call system\instructions\activate_environment.bat || (
-    pause
-    exit /b 1
-)
 
 echo    %L_YELLOW%Installing build tools...%RESET%
 conda install -c conda-forge wheel setuptools cmake -y || (

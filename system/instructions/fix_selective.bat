@@ -12,6 +12,9 @@ set "L_CYAN=%ESC%[96m"
 set "L_BLUE=%ESC%[94m"
 set "RESET=%ESC%[0m"
 
+
+call system\instructions\activate_environment.bat
+
 echo.
 echo    %L_BLUE%SELECTIVE FIXES - Audio Processing Pipeline%RESET%
 echo.
@@ -71,7 +74,6 @@ echo.
 echo    %L_CYAN%Fixing NumPy conflicts...%RESET%
 echo    %L_YELLOW%This will reinstall NumPy with compatible version%RESET%
 echo.
-call system\instructions\activate_environment.bat
 echo.
 echo    %L_CYAN%Uninstalling current NumPy...%RESET%
 pip uninstall numpy -y

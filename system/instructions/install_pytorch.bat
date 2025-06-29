@@ -25,13 +25,6 @@ if not exist "!PYTHON_EXE!" (
     exit /b 1
 )
 
-:: Activate environment
-echo    %L_CYAN%Activating environment...%RESET%
-call system\instructions\activate_environment.bat || (
-    pause
-    exit /b 1
-)
-
 :: Check current PyTorch installation
 echo    %L_CYAN%Checking current PyTorch installation...%RESET%
 "!PYTHON_EXE!" -c "import torch; print('Current PyTorch:', torch.__version__); print('CUDA available:', torch.cuda.is_available()); print('CUDA version:', torch.version.cuda if torch.cuda.is_available() else 'N/A')" 2>nul || (

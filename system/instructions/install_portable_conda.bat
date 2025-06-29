@@ -43,9 +43,6 @@ set SPCHARMESSAGE=
 set TMP=%cd%\audio_environment
 set TEMP=%cd%\audio_environment
 
-@rem deactivate existing conda envs as needed to avoid conflicts
-(call conda deactivate && call conda deactivate && call conda deactivate) 2>nul
-
 @rem config
 set INSTALL_DIR=%cd%\audio_environment
 set CONDA_ROOT_PREFIX=%cd%\audio_environment\conda
