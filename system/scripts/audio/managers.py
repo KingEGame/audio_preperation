@@ -108,10 +108,19 @@ class ModelManager:
             try:
                 import silero_vad
                 self.models[model_key] = silero_vad.load_silero_vad()
+                # Загружаем модель на правильное устройство
                 if self.device.type == "cuda":
                     self.models[model_key] = self.models[model_key].to(self.device)
+                else:
+                    # Для CPU убеждаемся, что модель на CPU
+                    self.models[model_key] = self.models[model_key].cpu()
             except ImportError:
                 raise ImportError("silero-vad not installed")
+        else:
+            # Убеждаемся, что кэшированная модель на правильном устройстве
+            current_device = next(self.models[model_key].parameters()).device
+            if current_device != self.device:
+                self.models[model_key] = self.models[model_key].to(self.device)
         
         return self.models[model_key]
     

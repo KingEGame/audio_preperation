@@ -162,19 +162,32 @@ def remove_silence_with_silero_optimized(input_wav, output_wav=None, min_speech_
     try:
         # Загружаем аудио
         wav, sr = torchaudio.load(input_wav)
-        wav = wav.to(device)
         
         # Ресэмплируем если нужно
         if sr != sample_rate:
             wav = torchaudio.functional.resample(wav, sr, sample_rate)
             sr = sample_rate
         
-        # Получаем кэшированную модель
+        # Получаем модель VAD на правильном устройстве
         if model_manager:
-            model = model_manager.get_silero_vad_model()
+            try:
+                model = model_manager.get_silero_vad_model()
+                # Убеждаемся, что модель на правильном устройстве
+                model = model.to(device)
+            except Exception as e:
+                logger.warning(f"Failed to get cached VAD model: {e}")
+                model = silero_vad.load_silero_vad()
+                model = model.to(device)
         else:
             model = silero_vad.load_silero_vad()
             model = model.to(device)
+        
+        # Перемещаем аудио на то же устройство, что и модель
+        wav = wav.to(device)
+        
+        # Проверяем, что все на одном устройстве
+        logger.info(f"Audio tensor device: {wav.device}")
+        logger.info(f"Model device: {next(model.parameters()).device}")
         
         # Анализ речи
         speech_timestamps = silero_vad.get_speech_timestamps(
