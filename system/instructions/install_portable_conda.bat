@@ -22,7 +22,6 @@ echo    - Ready for package installation
 echo.
 echo    %L_YELLOW%NOTE: This may take 5-15 minutes.%RESET%
 echo.
-pause
 
 @rem Check if curl is available
 curl --version >nul 2>&1

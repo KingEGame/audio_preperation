@@ -77,7 +77,7 @@ audio_environment/
 *.log
 !system/requirements/
 !system/instructions/
-!system/requirements/*.txt
+!system/scripts/audio/
 # Security - конфигурационные файлы с токенами
 hf_token.txt
 Access.txt
@@ -92,3 +92,8 @@ temp/
 *.mp3
 *.rttm
 test_diarization_results/
+start_ultra_optimized_processing.bat
+start_safe_processing.bat
+start_processing.bat
+audio_concat.bat
+activate_environment.bat

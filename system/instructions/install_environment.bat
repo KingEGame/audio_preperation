@@ -23,7 +23,6 @@ echo    - PyAnnote for speaker diarization
 echo.
 echo    %L_YELLOW%NOTE: This may take 10-30 minutes.%RESET%
 echo.
-pause
 
 :: Set environment variables
 set INSTALL_DIR=%cd%\audio_environment
@@ -67,7 +66,7 @@ echo.
 
 :: Upgrade pip and setuptools first
 echo    %L_CYAN%Upgrading pip and setuptools...%RESET%
-"%INSTALL_ENV_DIR%\python.exe" -m pip install --upgrade pip setuptools wheel --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+python -m pip install --upgrade pip setuptools wheel || (
     echo %L_YELLOW%Warning: Failed to upgrade pip, continuing...%RESET%
 )
 
@@ -80,7 +79,7 @@ call system\instructions\install_pytorch.bat
 echo    %L_CYAN%Installing remaining dependencies...%RESET%
 echo    %L_YELLOW%Note: PyTorch was installed first, now installing other dependencies...%RESET%
 
-"%INSTALL_ENV_DIR%\Scripts\pip.exe" install -r system\requirements\requirements.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+pip install -r system\requirements\requirements.txt  || (
     echo %L_RED%Failed to install remaining dependencies!%RESET%
     echo Please check the error messages above and try again.
     pause
@@ -91,16 +90,9 @@ echo    %L_YELLOW%Note: PyTorch was installed first, now installing other depend
 echo    %L_CYAN%Installing diarization packages (optional)...%RESET%
 echo    %L_YELLOW%Note: These packages may fail if cmake/C++ compiler is not available.%RESET%
 
-:: Try to install PyAnnote and SpeechBrain
-"%INSTALL_ENV_DIR%\Scripts\pip.exe" install -r system\requirements\requirements_diarization.txt --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
-    echo %L_YELLOW%Warning: Some diarization packages failed to install.%RESET%
-    echo %L_YELLOW%This is normal if cmake/C++ compiler is not available.%RESET%
-    echo %L_YELLOW%Diarization will work with limited functionality.%RESET%
-)
-
 :: Try to install sentencepiece from pre-built wheels
 echo    %L_CYAN%Installing sentencepiece from pre-built wheels...%RESET%
-"%INSTALL_ENV_DIR%\Scripts\pip.exe" install sentencepiece --only-binary=all --trusted-host pypi.org --trusted-host pypi.python.org --trusted-host files.pythonhosted.org || (
+conda install sentencepiece -y || (
     echo %L_YELLOW%Warning: sentencepiece installation failed.%RESET%
     echo %L_YELLOW%This is normal - will use alternative tokenization.%RESET%
 )
