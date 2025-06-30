@@ -10,6 +10,7 @@ import threading
 import time
 from concurrent.futures import ProcessPoolExecutor, ThreadPoolExecutor, as_completed
 from functools import partial
+import shutil
 
 from .managers import GPUMemoryManager, ModelManager
 from .stages import clean_audio_with_demucs_optimized, diarize_with_pyannote_optimized
@@ -279,6 +280,7 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
             if isinstance(part, str) and Path(part).exists():
                 # Если это файл диаризации, организуем по спикерам
                 if 'diarized' in part and Path(part).parent.name == 'diarized':
+                    # Ищем папки спикеров в папке diarized
                     speaker_folders = [d for d in Path(part).parent.iterdir() if d.is_dir() and d.name.startswith('speaker_')]
                     
                     for speaker_folder in speaker_folders:
@@ -307,7 +309,63 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
                         }
                     organized_speakers['general']['files'].append(Path(part))
         
-        return organized_speakers
+        # Также проверяем папку diarized напрямую, если она существует
+        diarized_dir = temp_dir / 'diarized'
+        if diarized_dir.exists():
+            speaker_folders = [d for d in diarized_dir.iterdir() if d.is_dir() and d.name.startswith('speaker_')]
+            
+            for speaker_folder in speaker_folders:
+                speaker_name = speaker_folder.name
+                if speaker_name not in organized_speakers:
+                    organized_speakers[speaker_name] = {
+                        'files': [],
+                        'metadata': [],
+                        'folder': speaker_folder
+                    }
+                
+                # Добавляем файлы спикера
+                audio_files = list(speaker_folder.glob('*.wav'))
+                organized_speakers[speaker_name]['files'].extend(audio_files)
+                
+                # Добавляем метаданные
+                metadata_files = list(speaker_folder.glob('metadata_*.txt'))
+                organized_speakers[speaker_name]['metadata'].extend(metadata_files)
+        
+        # 4. Копируем результаты в выходную папку
+        logger.info("Copying results to output directory...")
+        copied_speakers = {}
+        
+        for speaker_name, speaker_data in organized_speakers.items():
+            # Создаем папку для спикера в выходной директории
+            speaker_output_dir = output_dir / speaker_name
+            speaker_output_dir.mkdir(parents=True, exist_ok=True)
+            
+            copied_speakers[speaker_name] = {
+                'files': [],
+                'metadata': [],
+                'folder': speaker_output_dir
+            }
+            
+            # Копируем аудио файлы
+            for audio_file in speaker_data['files']:
+                if audio_file.exists():
+                    new_name = f"{audio_file.stem}_{int(time.time())}.wav"
+                    new_path = speaker_output_dir / new_name
+                    shutil.copy2(audio_file, new_path)
+                    copied_speakers[speaker_name]['files'].append(new_path)
+                    logger.info(f"Copied: {audio_file.name} -> {new_name}")
+            
+            # Копируем метаданные
+            for metadata_file in speaker_data['metadata']:
+                if metadata_file.exists():
+                    new_name = f"metadata_{speaker_name}_{int(time.time())}.txt"
+                    new_path = speaker_output_dir / new_name
+                    shutil.copy2(metadata_file, new_path)
+                    copied_speakers[speaker_name]['metadata'].append(new_path)
+                    logger.info(f"Copied metadata: {metadata_file.name} -> {new_name}")
+        
+        logger.info(f"Copied results for {len(copied_speakers)} speakers to {output_dir}")
+        return copied_speakers
         
     finally:
         # Очищаем временные файлы
