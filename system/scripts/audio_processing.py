@@ -53,6 +53,9 @@ def main():
     parser.add_argument('--output', '-o', help='Folder for saving results')
     parser.add_argument('--mode', type=str, default='multithreaded', choices=['single', 'multithreaded'],
                         help='Processing mode: single (sequential) or multithreaded (parallel, recommended)')
+    parser.add_argument('--denoise_mode', type=str, default='enhanced', 
+                        choices=['vocals', 'no_vocals', 'all', 'enhanced'],
+                        help='Demucs denoising mode: vocals (voice only), no_vocals (background only), all (all sources), enhanced (voice + reduced background)')
     parser.add_argument('--verbose', '-v', action='store_true', help='Verbose logging')
     parser.add_argument('--interactive', action='store_true', help='Interactive mode with parameter prompts')
     args = parser.parse_args()

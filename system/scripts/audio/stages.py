@@ -6,6 +6,7 @@ import os
 import sys
 import subprocess
 import logging
+import threading
 from pathlib import Path
 import torch
 import torchaudio
@@ -16,30 +17,46 @@ from demucs.audio import AudioFile
 sys.path.append(str(Path(__file__).parent.parent))
 from config import get_token, token_exists
 
-def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_manager, logger=None):
+# Глобальная блокировка для диаризации (предотвращает конфликты прогресс-баров)
+DIARIZATION_LOCK = threading.Lock()
+
+def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_manager, logger=None, mode='vocals'):
     """
     Оптимизированная очистка аудио с помощью Demucs с лучшим управлением памятью
+    mode: 'vocals' - только вокалы, 'no_vocals' - без вокалов, 'all' - все источники, 'enhanced' - улучшенное аудио
     """
     if logger is None:
         logger = logging.getLogger(__name__)
 
     temp_dir = Path(temp_dir)
     temp_dir.mkdir(parents=True, exist_ok=True)
-    vocals_file = temp_dir / f"{Path(input_audio).stem}_vocals.wav"
+    
+    # Создаем разные имена файлов в зависимости от режима
+    if mode == 'vocals':
+        output_file = temp_dir / f"{Path(input_audio).stem}_vocals.wav"
+    elif mode == 'no_vocals':
+        output_file = temp_dir / f"{Path(input_audio).stem}_no_vocals.wav"
+    elif mode == 'all':
+        output_file = temp_dir / f"{Path(input_audio).stem}_enhanced.wav"
+    elif mode == 'enhanced':
+        output_file = temp_dir / f"{Path(input_audio).stem}_enhanced.wav"
+    else:
+        output_file = temp_dir / f"{Path(input_audio).stem}_cleaned.wav"
 
-    if vocals_file.exists():
-        logger.info(f"File already exists: {vocals_file}")
-        return str(vocals_file)
+    if output_file.exists():
+        logger.info(f"File already exists: {output_file}")
+        return str(output_file)
 
     try:
         # Проверяем память перед обработкой
-        if not gpu_manager.check_memory(required_gb=3.0):  # Увеличиваем требования к памяти
+        if not gpu_manager.check_memory(required_gb=3.0):
             logger.warning("Insufficient GPU memory for Demucs, using CPU")
             device = torch.device("cpu")
         else:
             device = gpu_manager.device
         
         logger.info(f"Using device for Demucs: {device}")
+        logger.info(f"Processing mode: {mode}")
         
         # Получаем кэшированную модель
         model = model_manager.get_demucs_model()
@@ -67,15 +84,22 @@ def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_
         
         logger.info(f"Audio file loaded. Tensor size: {wav.shape}")
         
+        # Проверяем уровень громкости исходного аудио
+        original_rms = torch.sqrt(torch.mean(wav**2))
+        logger.info(f"Original audio RMS: {original_rms:.6f}")
+        
+        if original_rms < 0.001:
+            logger.warning("Original audio is very quiet, skipping Demucs processing")
+            return input_audio
+        
         # Перемещаем на устройство
-        wav = wav.to(device, dtype=torch.float32)  # Явно указываем тип данных
+        wav = wav.to(device, dtype=torch.float32)
         
         # Применяем модель с улучшенным управлением памятью
         logger.info("Applying Demucs model...")
         
         try:
-            # Отключаем autocast для стабильности
-            with torch.no_grad():  # Отключаем градиенты для экономии памяти
+            with torch.no_grad():
                 sources = apply_model(model, wav, device=device)
             
             # Проверяем результат
@@ -83,10 +107,54 @@ def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_
                 logger.error("Demucs returned empty result")
                 return input_audio
             
-            # Сохраняем вокалы
-            vocals = sources[0, 0].cpu()  # Берем вокалы и перемещаем на CPU
-            torchaudio.save(str(vocals_file), vocals, model.samplerate)
-            logger.info(f"Saved: {vocals_file}")
+            logger.info(f"Demucs sources shape: {sources.shape}")
+            
+            # Обрабатываем результат в зависимости от режима
+            if mode == 'vocals':
+                # Только вокалы (индекс 0)
+                result = sources[0, 0]
+                logger.info("Extracting vocals only")
+            elif mode == 'no_vocals':
+                # Все кроме вокалов (индексы 1, 2, 3)
+                result = sources[0, 1] + sources[0, 2] + sources[0, 3]
+                logger.info("Extracting non-vocal components")
+            elif mode == 'all':
+                # Все источники вместе
+                result = sources[0, 0] + sources[0, 1] + sources[0, 2] + sources[0, 3]
+                logger.info("Combining all sources")
+            elif mode == 'enhanced':
+                # Улучшенное аудио: вокалы + немного остального
+                vocals = sources[0, 0]
+                other = (sources[0, 1] + sources[0, 2] + sources[0, 3]) * 0.3  # Уменьшаем фоновые звуки
+                result = vocals + other
+                logger.info("Creating enhanced audio (vocals + reduced background)")
+            else:
+                # По умолчанию - вокалы
+                result = sources[0, 0]
+                logger.info("Default mode: extracting vocals")
+            
+            # Проверяем уровень громкости результата
+            result_rms = torch.sqrt(torch.mean(result**2))
+            logger.info(f"Result audio RMS: {result_rms:.6f}")
+            
+            # Если результат слишком тихий, возвращаем оригинал
+            if result_rms < 0.0001:
+                logger.warning("Demucs result is too quiet, returning original audio")
+                return input_audio
+            
+            # Нормализуем громкость если нужно
+            if result_rms < 0.01:
+                logger.info("Normalizing audio volume")
+                target_rms = 0.1
+                gain = target_rms / result_rms
+                result = result * gain
+                # Ограничиваем максимальную громкость
+                result = torch.clamp(result, -0.95, 0.95)
+            
+            # Перемещаем на CPU и сохраняем
+            result = result.cpu()
+            torchaudio.save(str(output_file), result, model.samplerate)
+            logger.info(f"Saved: {output_file}")
 
         except Exception as e:
             logger.error(f"Error during Demucs processing: {e}")
@@ -98,9 +166,23 @@ def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_
                     model_cpu = model.cpu()
                     with torch.no_grad():
                         sources = apply_model(model_cpu, wav_cpu, device=torch.device("cpu"))
-                    vocals = sources[0, 0]
-                    torchaudio.save(str(vocals_file), vocals, model.samplerate)
-                    logger.info(f"Saved with CPU: {vocals_file}")
+                    
+                    # Обрабатываем результат
+                    if mode == 'vocals':
+                        result = sources[0, 0]
+                    elif mode == 'no_vocals':
+                        result = sources[0, 1] + sources[0, 2] + sources[0, 3]
+                    elif mode == 'all':
+                        result = sources[0, 0] + sources[0, 1] + sources[0, 2] + sources[0, 3]
+                    elif mode == 'enhanced':
+                        vocals = sources[0, 0]
+                        other = (sources[0, 1] + sources[0, 2] + sources[0, 3]) * 0.3
+                        result = vocals + other
+                    else:
+                        result = sources[0, 0]
+                    
+                    torchaudio.save(str(output_file), result, model.samplerate)
+                    logger.info(f"Saved with CPU: {output_file}")
                 except Exception as e2:
                     logger.error(f"CPU processing also failed: {e2}")
                     return input_audio
@@ -111,11 +193,11 @@ def clean_audio_with_demucs_optimized(input_audio, temp_dir, model_manager, gpu_
         del wav
         if 'sources' in locals():
             del sources
-        if 'vocals' in locals():
-            del vocals
+        if 'result' in locals():
+            del result
         gpu_manager.cleanup()
         
-        return str(vocals_file)
+        return str(output_file)
         
     except Exception as e:
         logger.error(f"Error during audio cleaning: {e}")
@@ -163,11 +245,13 @@ def diarize_with_pyannote_optimized(input_audio, output_dir, min_segment_duratio
             if gpu_manager and gpu_manager.device.type == "cuda":
                 pipeline = pipeline.to(gpu_manager.device)
         
-        # Выполняем диаризацию
+        # Выполняем диаризацию с блокировкой для предотвращения конфликтов прогресс-баров
         logger.info("Executing diarization...")
         from pyannote.audio.pipelines.utils.hook import ProgressHook
-        with ProgressHook() as hook:
-            diarization = pipeline(input_audio, hook=hook)
+        
+        with DIARIZATION_LOCK:
+            with ProgressHook() as hook:
+                diarization = pipeline(input_audio, hook=hook)
         
         # Анализируем результаты
         speakers = set()

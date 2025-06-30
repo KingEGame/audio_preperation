@@ -21,7 +21,7 @@ from .config import GPU_MEMORY_LIMIT
 DIARIZATION_LOCK = threading.Lock()
 
 def process_audio_file_optimized(audio_file, output_dir, steps, chunk_duration, 
-                                min_segment_duration, split_method, use_gpu, logger):
+                                min_segment_duration, split_method, use_gpu, logger, denoise_mode='enhanced'):
     """
     Оптимизированная обработка одного аудио файла с улучшенным управлением ресурсами
     """
@@ -85,7 +85,7 @@ def process_audio_file_optimized(audio_file, output_dir, steps, chunk_duration,
             
             # Обрабатываем части с улучшенным управлением памятью
             processed_parts = process_parts_optimized(
-                parts, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager
+                parts, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager, denoise_mode
             )
             
             # Копируем результаты в выходную папку
@@ -103,7 +103,7 @@ def process_audio_file_optimized(audio_file, output_dir, steps, chunk_duration,
         logger.error(f"Error processing file {audio_file.name}: {e}")
         return None
 
-def process_parts_optimized(parts, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager):
+def process_parts_optimized(parts, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager, denoise_mode):
     """
     Оптимизированная обработка частей аудио с лучшим управлением ресурсами
     """
@@ -120,7 +120,7 @@ def process_parts_optimized(parts, file_temp_dir, steps, use_gpu, logger, model_
                 gpu_manager.cleanup(force=True)
             
             result = process_single_part_optimized(
-                part, idx, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager
+                part, idx, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager, denoise_mode
             )
             processed_parts.append(result)
             
@@ -133,7 +133,7 @@ def process_parts_optimized(parts, file_temp_dir, steps, use_gpu, logger, model_
     
     return processed_parts
 
-def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager):
+def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, logger, model_manager, gpu_manager, denoise_mode):
     """
     Оптимизированная обработка одной части аудио
     """
@@ -153,7 +153,7 @@ def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, logg
             try:
                 logger.info(f"Denoising part {idx+1}")
                 cleaned = clean_audio_with_demucs_optimized(
-                    str(current), file_temp_dir / 'cleaned', model_manager, gpu_manager, logger
+                    str(current), file_temp_dir / 'cleaned', model_manager, gpu_manager, logger, mode=denoise_mode
                 )
             except Exception as e:
                 logger.error(f"Error denoising part {idx+1}: {e}")
@@ -182,7 +182,7 @@ def process_single_part_optimized(part, idx, file_temp_dir, steps, use_gpu, logg
         return [str(part_path)]
 
 def process_chunk_with_metadata(chunk_path, chunk_info, steps, use_gpu, logger, 
-                               model_manager, gpu_manager, temp_dir):
+                               model_manager, gpu_manager, temp_dir, denoise_mode='enhanced'):
     """
     Обработка одного чанка с метаданными и многопоточностью
     """
@@ -196,7 +196,7 @@ def process_chunk_with_metadata(chunk_path, chunk_info, steps, use_gpu, logger,
         if 'denoise' in steps:
             logger.info(f"Denoising chunk {chunk_info.get('chunk_number', 'unknown')}")
             cleaned = clean_audio_with_demucs_optimized(
-                str(current), temp_dir / 'cleaned', model_manager, gpu_manager, logger
+                str(current), temp_dir / 'cleaned', model_manager, gpu_manager, logger, mode=denoise_mode
             )
         else:
             cleaned = str(current)
