@@ -324,6 +324,10 @@ def process_multiple_files_parallel_optimized(files, output_dir, steps, chunk_du
     """
     all_organized_speakers = {}
     
+    # Инициализируем менеджеры один раз и передаем во все потоки
+    gpu_manager = GPUMemoryManager()
+    model_manager = ModelManager(gpu_manager)
+    
     with ThreadPoolExecutor(max_workers=2) as executor:
         futures = []
         
@@ -331,7 +335,7 @@ def process_multiple_files_parallel_optimized(files, output_dir, steps, chunk_du
             future = executor.submit(
                 process_file_multithreaded_optimized,
                 audio_file, output_dir, steps, chunk_duration,
-                min_speaker_segment, split_method, use_gpu, logger
+                min_speaker_segment, split_method, use_gpu, logger, model_manager, gpu_manager
             )
             futures.append(future)
         
@@ -351,5 +355,9 @@ def process_multiple_files_parallel_optimized(files, output_dir, steps, chunk_du
                         
             except Exception as e:
                 logger.error(f"Error processing file: {e}")
+    
+    # Очистка менеджеров после завершения всех задач
+    model_manager.cleanup_models()
+    gpu_manager.cleanup(force=True)
     
     return all_organized_speakers

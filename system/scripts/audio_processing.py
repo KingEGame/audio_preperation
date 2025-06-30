@@ -31,7 +31,7 @@ try:
     from audio import (
         GPUMemoryManager, ModelManager,
         process_audio_file_optimized, parallel_audio_processing_optimized,
-        process_multiple_files_parallel_optimized,
+        process_multiple_files_parallel_optimized, process_file_multithreaded_optimized,
         clean_audio_with_demucs_optimized, 
         diarize_with_pyannote_optimized,
         split_audio_by_duration_optimized, split_audio_at_word_boundary_optimized,
@@ -337,7 +337,6 @@ def main():
                     print(f"{'='*50}")
                     
                     # Используем новую функцию для одного файла
-                    from audio.processors import process_file_multithreaded_optimized
                     organized_speakers = process_file_multithreaded_optimized(
                         audio, output_dir, steps, chunk_duration,
                         min_speaker_segment, split_method, use_gpu,

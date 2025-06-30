@@ -268,7 +268,7 @@ def main():
         
         organized_speakers = process_multiple_files_parallel_optimized(
             files, output_dir, steps, chunk_duration,
-            min_speaker_segment, split_method, use_gpu, force_cpu_vad, logger
+            min_speaker_segment, split_method, use_gpu, logger
         )
         
         # Показываем результаты
@@ -304,7 +304,7 @@ def main():
                     from audio.processors import process_file_multithreaded_optimized
                     organized_speakers = process_file_multithreaded_optimized(
                         audio, output_dir, steps, chunk_duration,
-                        min_speaker_segment, split_method, use_gpu, force_cpu_vad,
+                        min_speaker_segment, split_method, use_gpu,
                         logger, model_manager, gpu_manager
                     )
                     
