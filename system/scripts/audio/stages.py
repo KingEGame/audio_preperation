@@ -7,11 +7,14 @@ import sys
 import subprocess
 import logging
 import threading
+import time
+import shutil
 from pathlib import Path
 import torch
 import torchaudio
 from demucs.apply import apply_model
 from demucs.audio import AudioFile
+from tqdm import tqdm
 
 # Импорт конфигурации токена
 sys.path.append(str(Path(__file__).parent.parent))
@@ -592,3 +595,300 @@ def organize_speakers_to_output(speaker_folders, output_dir, logger=None):
     
     logger.info(f"Organized {len(organized_speakers)} speakers to output directory")
     return organized_speakers
+
+def diarize_with_role_classification(input_audio, output_dir, min_segment_duration=0.3, 
+                                   chunk_info=None, model_manager=None, gpu_manager=None, logger=None):
+    """
+    Диаризация с автоматическим разделением на роли (нарратор + персонажи)
+    Автоматически определяет количество ролей и объединяет сегменты каждой роли
+    """
+    if logger is None:
+        logger = logging.getLogger(__name__)
+    
+    # Проверяем доступность токена
+    if not token_exists():
+        logger.warning("HuggingFace token file not found. Skipping diarization.")
+        logger.info("To enable diarization, run: setup_diarization.bat")
+        return input_audio
+    
+    token = get_token()
+    if not token:
+        logger.warning("HuggingFace token is empty. Skipping diarization.")
+        logger.info("To enable diarization, run: setup_diarization.bat")
+        return input_audio
+
+    # Создаем выходную папку
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    
+    logger.info(f"Starting role-based diarization of file: {input_audio}")
+    if chunk_info:
+        logger.info(f"Chunk info: {chunk_info}")
+    
+    try:
+        # Получаем кэшированный пайплайн
+        if model_manager:
+            pipeline = model_manager.get_diarization_pipeline(token)
+        else:
+            from pyannote.audio import Pipeline
+            pipeline = Pipeline.from_pretrained(
+                "pyannote/speaker-diarization-3.1",
+                use_auth_token=token
+            )
+            if gpu_manager and gpu_manager.device.type == "cuda":
+                pipeline = pipeline.to(gpu_manager.device)
+        
+        # Выполняем диаризацию
+        logger.info("Executing diarization...")
+        from pyannote.audio.pipelines.utils.hook import ProgressHook
+        
+        with DIARIZATION_LOCK:
+            with ProgressHook() as hook:
+                diarization = pipeline(input_audio, hook=hook)
+        
+        # Собираем сегменты и получаем эмбеддинги
+        segments = []
+        embeddings = []
+        
+        logger.info("Extracting embeddings for role classification...")
+        
+        for turn, _, speaker in diarization.itertracks(yield_label=True):
+            start_time = turn.start
+            end_time = turn.end
+            duration = end_time - start_time
+            
+            # Проверяем минимальную длительность
+            if min_segment_duration > 0 and duration < min_segment_duration:
+                continue
+            
+            # Получаем эмбеддинг для сегмента
+            try:
+                # Используем метод get_embedding если доступен
+                if hasattr(pipeline, 'get_embedding'):
+                    emb = pipeline.get_embedding(input_audio, segment=turn)
+                else:
+                    # Альтернативный способ получения эмбеддинга
+                    from pyannote.audio import Audio
+                    audio = Audio(sample_rate=16000, mono=True)
+                    waveform, sample_rate = audio.crop(input_audio, segment=turn)
+                    
+                    # Используем модель эмбеддингов
+                    from pyannote.audio.models import SegmentationModel
+                    model = SegmentationModel.from_pretrained("pyannote/speaker-diarization-3.1", use_auth_token=token)
+                    if gpu_manager and gpu_manager.device.type == "cuda":
+                        model = model.to(gpu_manager.device)
+                    
+                    with torch.no_grad():
+                        emb = model(waveform.unsqueeze(0)).mean(dim=1).squeeze().cpu().numpy()
+                
+                segments.append({
+                    'start': start_time,
+                    'end': end_time,
+                    'duration': duration,
+                    'speaker': speaker,
+                    'original_speaker': speaker
+                })
+                embeddings.append(emb)
+                
+            except Exception as e:
+                logger.warning(f"Failed to get embedding for segment {start_time:.2f}-{end_time:.2f}: {e}")
+                continue
+        
+        if not segments:
+            logger.warning("No valid segments found for role classification")
+            return input_audio
+        
+        logger.info(f"Extracted {len(segments)} segments with embeddings")
+        
+        # Автоматически определяем количество ролей
+        # Минимум 2 (нарратор + персонаж), максимум 10
+        n_segments = len(segments)
+        n_roles = min(max(2, n_segments // 5), 10)  # Примерно 5 сегментов на роль
+        
+        logger.info(f"Clustering {len(segments)} segments into {n_roles} roles...")
+        
+        # Кластеризация эмбеддингов
+        try:
+            import numpy as np
+            from sklearn.cluster import KMeans
+            from sklearn.preprocessing import StandardScaler
+            
+            # Подготавливаем эмбеддинги
+            embeddings_array = np.vstack(embeddings)
+            
+            # Нормализуем эмбеддинги
+            scaler = StandardScaler()
+            embeddings_scaled = scaler.fit_transform(embeddings_array)
+            
+            # Кластеризация
+            kmeans = KMeans(n_clusters=n_roles, random_state=42, n_init='auto')
+            role_labels = kmeans.fit_predict(embeddings_scaled)
+            
+            # Назначаем роли сегментам
+            for i, segment in enumerate(segments):
+                segment['role'] = f"role_{role_labels[i]:02d}"
+            
+            logger.info(f"Successfully classified segments into {n_roles} roles")
+            
+        except Exception as e:
+            logger.error(f"Clustering failed: {e}")
+            logger.info("Falling back to original speaker labels")
+            for segment in segments:
+                segment['role'] = segment['original_speaker']
+        
+        # Группируем сегменты по ролям
+        role_segments = {}
+        for segment in segments:
+            role = segment['role']
+            if role not in role_segments:
+                role_segments[role] = []
+            role_segments[role].append(segment)
+        
+        logger.info(f"Grouped segments by roles: {list(role_segments.keys())}")
+        
+        # Определяем нарратора (самая длинная роль)
+        role_durations = {}
+        for role, segs in role_segments.items():
+            total_duration = sum(s['duration'] for s in segs)
+            role_durations[role] = total_duration
+        
+        # Находим роль с максимальной длительностью (нарратор)
+        narrator_role = max(role_durations, key=role_durations.get)
+        
+        # Создаем файлы для каждой роли
+        role_files = []
+        
+        for role, segs in role_segments.items():
+            if not segs:
+                continue
+            
+            # Сортируем сегменты по времени
+            segs.sort(key=lambda x: x['start'])
+            
+            # Определяем имя файла
+            if role == narrator_role:
+                output_filename = "narrator.wav"
+                role_name = "Narrator"
+            else:
+                # Находим номер персонажа
+                character_roles = [r for r in role_segments.keys() if r != narrator_role]
+                character_number = character_roles.index(role) + 1
+                output_filename = f"character_{character_number:02d}.wav"
+                role_name = f"Character {character_number}"
+            
+            output_file = output_dir / output_filename
+            
+            # Создаем файл списка сегментов для FFmpeg
+            segments_list_file = output_dir / f"segments_{role}.txt"
+            
+            with open(segments_list_file, 'w', encoding='utf-8') as f:
+                for segment in segs:
+                    abs_input_path = str(Path(input_audio).absolute())
+                    f.write(f"file '{abs_input_path}'\n")
+                    f.write(f"inpoint {segment['start']:.3f}\n")
+                    f.write(f"outpoint {segment['end']:.3f}\n")
+            
+            # Создаем аудиофайл с помощью FFmpeg
+            success = False
+            try:
+                command = [
+                    "ffmpeg", "-f", "concat", "-safe", "0",
+                    "-i", str(segments_list_file),
+                    "-c", "copy", str(output_file),
+                    "-y"
+                ]
+                
+                result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+                
+                if result.returncode == 0 and output_file.exists():
+                    from .utils import get_mp3_duration
+                    duration_str = get_mp3_duration(str(output_file))
+                    time_parts = duration_str.split(":")
+                    total_duration = int(time_parts[0]) * 3600 + int(time_parts[1]) * 60 + int(time_parts[2])
+                    
+                    logger.info(f"Created {role_name} file: {output_filename} "
+                               f"({total_duration}s, {len(segs)} segments)")
+                    role_files.append(str(output_file))
+                    success = True
+                    
+            except subprocess.CalledProcessError as e:
+                logger.warning(f"FFmpeg concat failed for {role_name}: {e}")
+            except subprocess.TimeoutExpired:
+                logger.warning(f"FFmpeg timeout for {role_name}")
+            except Exception as e:
+                logger.warning(f"FFmpeg error for {role_name}: {e}")
+            
+            # Если concat не сработал, пробуем с перекодированием
+            if not success:
+                try:
+                    command = [
+                        "ffmpeg", "-f", "concat", "-safe", "0",
+                        "-i", str(segments_list_file),
+                        "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
+                        str(output_file), "-y"
+                    ]
+                    
+                    result = subprocess.run(command, capture_output=True, text=True, timeout=300)
+                    
+                    if result.returncode == 0 and output_file.exists():
+                        from .utils import get_mp3_duration
+                        duration_str = get_mp3_duration(str(output_file))
+                        time_parts = duration_str.split(":")
+                        total_duration = int(time_parts[0]) * 3600 + int(time_parts[1]) * 60 + int(time_parts[2])
+                        
+                        logger.info(f"Created {role_name} file (recode): {output_filename} "
+                                   f"({total_duration}s, {len(segs)} segments)")
+                        role_files.append(str(output_file))
+                        success = True
+                        
+                except Exception as e:
+                    logger.error(f"Failed to create {role_name} file: {e}")
+            
+            # Очищаем временный файл
+            if segments_list_file.exists():
+                segments_list_file.unlink()
+            
+            # Создаем метаданные для роли
+            metadata_file = output_dir / f"metadata_{role}.txt"
+            with open(metadata_file, 'w', encoding='utf-8') as f:
+                f.write(f"Role: {role_name}\n")
+                f.write(f"Role ID: {role}\n")
+                f.write(f"Source file: {Path(input_audio).name}\n")
+                if chunk_info:
+                    f.write(f"Chunk: {chunk_info.get('chunk_number', 'unknown')}\n")
+                    f.write(f"Chunk start time: {chunk_info.get('start_time', 0):.2f}s\n")
+                    f.write(f"Chunk end time: {chunk_info.get('end_time', 0):.2f}s\n")
+                f.write(f"Total segments: {len(segs)}\n")
+                f.write(f"Total duration: {sum(s['duration'] for s in segs):.2f}s\n")
+                f.write(f"Is narrator: {'Yes' if role == narrator_role else 'No'}\n\n")
+                f.write("Segments:\n")
+                f.write("-" * 50 + "\n")
+                
+                for i, segment in enumerate(segs, 1):
+                    f.write(f"{i:3d}. {segment['start']:8.2f}s - {segment['end']:8.2f}s "
+                           f"(duration: {segment['duration']:6.2f}s)\n")
+        
+        # Создаем общий файл с информацией о ролях
+        info_file = output_dir / "roles_info.txt"
+        with open(info_file, 'w', encoding='utf-8') as f:
+            f.write("ROLE CLASSIFICATION RESULTS\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(f"Source file: {Path(input_audio).name}\n")
+            f.write(f"Total segments: {len(segments)}\n")
+            f.write(f"Total roles detected: {len(role_segments)}\n")
+            f.write(f"Narrator role: {narrator_role}\n\n")
+            
+            f.write("Role details:\n")
+            f.write("-" * 30 + "\n")
+            for role, segs in role_segments.items():
+                total_duration = sum(s['duration'] for s in segs)
+                is_narrator = "Yes" if role == narrator_role else "No"
+                f.write(f"Role {role}: {len(segs)} segments, {total_duration:.2f}s, Narrator: {is_narrator}\n")
+        
+        logger.info(f"Created {len(role_files)} role files in {output_dir}")
+        return role_files if role_files else [input_audio]
+        
+    except Exception as e:
+        logger.error(f"Error during role-based diarization: {e}")
+        logger.warning("Role-based diarization failed, returning original file")
+        return input_audio

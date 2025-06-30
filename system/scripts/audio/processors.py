@@ -370,7 +370,6 @@ def process_file_multithreaded_optimized(audio_file, output_dir, steps, chunk_du
     finally:
         # Очищаем временные файлы
         try:
-            import shutil
             shutil.rmtree(temp_dir, ignore_errors=True)
         except:
             pass

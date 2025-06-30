@@ -11,7 +11,10 @@ from .processors import (
 )
 from .stages import (
     clean_audio_with_demucs_optimized,
-    diarize_with_pyannote_optimized
+    diarize_with_pyannote_optimized,
+    diarize_with_role_classification,
+    create_speaker_segments_with_metadata,
+    organize_speakers_to_output
 )
 from .splitters import (
     split_audio_by_duration_optimized,
