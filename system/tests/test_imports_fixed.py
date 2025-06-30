@@ -6,8 +6,9 @@ Test script to verify that all imports are working correctly
 import sys
 from pathlib import Path
 
-# Add the audio module to path
-sys.path.append(str(Path(__file__).parent.parent / 'scripts' / 'audio'))
+# Add the scripts directory to path
+scripts_dir = Path(__file__).parent.parent / 'scripts'
+sys.path.append(str(scripts_dir))
 
 def test_imports():
     """Test that all imports work correctly"""
